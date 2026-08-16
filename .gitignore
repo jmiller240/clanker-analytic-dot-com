@@ -5,6 +5,15 @@ build/
 dist/
 wheels/
 *.egg-info
+*.DS_Store
+
+# UV
+uv.lock
 
 # Virtual environments
 .venv
+
+# Data
+data/cache
+*.parquet
+*.csv
