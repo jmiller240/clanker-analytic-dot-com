@@ -1,0 +1,19 @@
+[project]
+name = "clanker-analytic-dot-com"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "appdirs==1.4.4",
+    "dash==4.4.1",
+    "dash-bootstrap-components==2.0.4",
+    "gunicorn==23.0.0",
+    "nflreadpy==0.1.5",
+    "numpy==2.5.2",
+    "pandas==3.0.5",
+    "plotly==6.9.0",
+    "polars>=1.43.2",
+    "pyarrow==25.0.1",
+    "requests==2.34.2",
+]
