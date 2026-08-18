@@ -2,14 +2,16 @@
 import polars as pl
 
 import dash
-from dash import Input, Output, dcc, html
+from dash import Input, Output, dcc, html, callback
 import dash_bootstrap_components as dbc
 
 import plotly.express as px
 import plotly.io as pio
 
-from data.loaders import STAT_OPTIONS, POSITION_OPTIONS, available_seasons, get_weekly_data
-from data.functions import calc_player_season_stats
+from data.loaders import available_seasons, get_weekly_data
+from data.charts import leaderboard_bar_chart
+from data.constants import POSITION_OPTIONS, STAT_OPTIONS
+from data.transforms import top_players_by_stat
 
 
 seasons = available_seasons()
@@ -97,7 +99,7 @@ graph = dcc.Loading(
         config={"displayModeBar": False},
         style={
             'height': '500px',
-            'width': '50%'
+            'width': '100%'
         }
     ),
     type="default",
@@ -115,3 +117,18 @@ layout = dbc.Container(
     fluid=True,
     className="pb-5",
 )
+
+
+# ---------- Callbacks ----------
+
+@callback(
+    Output("leaderboard-chart", "figure"),
+    Input("season-dropdown", "value"),
+    Input("position-dropdown", "value"),
+    Input("stat-dropdown", "value"),
+    Input("topn-dropdown", "value"),
+)
+def update_leaderboard(season, position, stat_col, top_n):
+    print(f'updating leaderboard...')
+    totals = top_players_by_stat(season, position, stat_col, top_n)
+    return leaderboard_bar_chart(totals, stat_col, position, season, top_n)

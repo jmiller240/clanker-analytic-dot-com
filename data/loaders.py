@@ -18,14 +18,68 @@ CACHE_DIR.mkdir(exist_ok=True)
 
 
 
-def get_matchups(year: int):
-    if year == 2024:
-        return ['PHI @ DAL']
-    elif year == 2025:
-        return ['HOU @ IND']
-    else:
-        return ['LA @ KC']
 
+
+# --------- Helpers ---------
+
+def available_seasons() -> list[int]:
+    """Seasons we currently support pulling. Extend as new seasons air."""
+    return list(range(2018, 2026))
+
+
+def get_matchups(year: int) -> list[str]:
+    schedule = get_schedules(years=[year])
+    return schedule['game_id'].to_list()
+
+
+def get_matchup_data(year: int, game_id: str) -> pl.DataFrame:
+    # Load
+    schedule = get_schedules(years=[year])
+
+    # Filter
+    matchup = schedule.filter(pl.col('game_id') == game_id)
+
+    return matchup
+
+def get_matchup_pbp_data(year: int, game_id: str) -> pl.DataFrame:
+    # Load
+    pbp = get_pbp_data(years=[year])
+
+    # Filter
+    pbp = pbp.filter(pl.col('game_id') == game_id)
+
+    return pbp
+
+
+# -------- nflreadpy downloaders / cachers ---------
+
+
+def get_teams():
+    cache_file = CACHE_DIR / f"teams.parquet"
+    
+    if cache_file.exists():
+        print(f'Reading local file')
+        return pl.read_parquet(cache_file)
+
+    print(f'Downloading data')
+    df = nfl.load_teams()
+    df.write_parquet(cache_file)
+
+    return df
+
+def get_schedules(years: list[int]) -> pl.DataFrame:
+
+    cache_file = CACHE_DIR / f"schedule_{min(years)}_{max(years)}.parquet"
+    
+    if cache_file.exists():
+        print(f'Reading local file')
+        return pl.read_parquet(cache_file)
+
+    print(f'Downloading data')
+    df = nfl.load_schedules(years)
+    df.write_parquet(cache_file)
+
+    return df
 
 def get_weekly_data(years: list[int]) -> pl.DataFrame:
     """
@@ -60,28 +114,3 @@ def get_pbp_data(years: list[int]) -> pl.DataFrame:
     df.write_parquet(cache_file)
 
     return df
-
-
-def available_seasons() -> list[int]:
-    """Seasons we currently support pulling. Extend as new seasons air."""
-    return list(range(2018, 2026))
-
-
-# Human-readable label -> underlying dataframe column, for the stat picker.
-# Add to this dict as you add more analysis (this is your "growth surface"
-# for stats coursework: e.g. add a computed EPA-per-play column here later).
-STAT_OPTIONS = {
-    'Games': 'games',
-    "Passing Yards": "passing_yards",
-    "Passing Yards / Game": "passing_yards_game",
-    "Passing TDs": "passing_tds",
-    "Interceptions": "passing_interceptions",
-    "Rushing Yards": "rushing_yards",
-    "Rushing TDs": "rushing_tds",
-    "Receptions": "receptions",
-    "Receiving Yards": "receiving_yards",
-    "Receiving TDs": "receiving_tds",
-    "Fantasy Points (PPR)": "fantasy_points_ppr",
-}
-
-POSITION_OPTIONS = ["QB", "RB", "WR", "TE"]
