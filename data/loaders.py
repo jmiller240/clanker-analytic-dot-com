@@ -12,6 +12,9 @@ from pathlib import Path
 import nflreadpy as nfl
 import pandas as pd
 import polars as pl
+import numpy as np
+
+from .constants import PLAY_TYPES_SPECIAL
 
 CACHE_DIR = Path(__file__).parent / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -103,14 +106,68 @@ def get_weekly_data(years: list[int]) -> pl.DataFrame:
 
 
 def get_pbp_data(years: list[int]) -> pl.DataFrame:
+    # Cache file
     cache_file = CACHE_DIR / f"pbp_{min(years)}_{max(years)}.parquet"
+
+    # ---- Load ----
+
+    # Read cached if exists
+    if cache_file.exists():
+        print(f'Reading local file')
+        return pl.read_parquet(cache_file)
+
+    # Otherwise download
+    print(f'Downloading data')
+    pbp_data = nfl.load_pbp(years)
+    pbp_data = pbp_data.to_pandas()
+
+    # ---- Add cols ----
+    # Drive
+    pbp_data['Master Drive ID'] = pbp_data['game_id'] + pbp_data['drive'].astype(str)
+    # pbp_data.with_columns(
+    #     pl.concat_str([pl.col('game_id'), pl.col('drive').cast(pl.Int8).cast(pl.String)], separator='_').alias('Master Drive ID'),
+    # )
+
+    # Snaps
+    pbp_data['Offensive Snap'] = (((pbp_data['pass'] == 1) | (pbp_data['rush'] == 1)) & (pbp_data['epa'].notna()))
+
+    # Flag for special teams
+    special_conditions = ((pbp_data['play_type_nfl'].isin(PLAY_TYPES_SPECIAL)) | (pbp_data['special_teams_play'] == 1))
+    pbp_data['Is Special Teams Play'] = special_conditions
+    
+    # Explosives
+    pbp_data['Explosive Play'] = np.where(pbp_data['yards_gained'] >= 15, 1, 0)
+
+    # On schedule play
+    on_schedule_conditions = (
+        ((pbp_data['down'] == 1) & (pbp_data['ydstogo'] <= 10)) |
+        ((pbp_data['down'] == 2) & (pbp_data['ydstogo'] <= 6)) | 
+        ((pbp_data['down'] == 3) & (pbp_data['ydstogo'] <= 4)) | 
+        ((pbp_data['down'] == 4) & (pbp_data['ydstogo'] <= 2))
+    )
+    pbp_data['On Schedule Play'] = on_schedule_conditions
+
+
+    # ---- Cache ----
+    pbp_data = pl.DataFrame(pbp_data)
+
+    pbp_data.write_parquet(cache_file)
+
+    return pbp_data
+
+
+def get_ftn_data(years: list[int]) -> pl.DataFrame:
+    if min(years) < 2022:
+        years = list([i for i in range(2022, max(years) + 1)])
+
+    cache_file = CACHE_DIR / f"ftn_charting_{min(years)}_{max(years)}.parquet"
 
     if cache_file.exists():
         print(f'Reading local file')
         return pl.read_parquet(cache_file)
 
     print(f'Downloading data')
-    df = nfl.load_pbp(years)
+    df = nfl.load_ftn_charting(years)
     df.write_parquet(cache_file)
 
     return df

@@ -1,4 +1,13 @@
 
+# --------- Data Related ----------
+
+PLAY_TYPES = ['GAME_START', 'KICK_OFF', 'PENALTY', 'PASS', 'RUSH', 'PUNT', 'FIELD_GOAL', 'SACK',\
+            'END_QUARTER', 'TIMEOUT', 'UNSPECIFIED', 'XP_KICK', 'INTERCEPTION', 'PAT2', 'END_GAME', \
+            'COMMENT', 'FUMBLE_RECOVERED_BY_OPPONENT', 'FREE_KICK']
+PLAY_TYPES_SPECIAL = ['KICK_OFF', 'PAT2', 'PUNT', 'FIELD_GOAL', 'XP_KICK']
+NON_PLAY_TYPES = ['GAME_START','END_QUARTER', 'TIMEOUT', 'END_GAME', 'COMMENT', 'FREE_KICK']
+
+
 # --------- Variables / Constants ----------
 
 # Human-readable label -> underlying dataframe column, for the stat picker.
