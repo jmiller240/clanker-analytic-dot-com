@@ -23,9 +23,18 @@ CACHE_DIR.mkdir(exist_ok=True)
 
 # --------- Helpers ---------
 
+# --- Lists ---
+
 def available_seasons() -> list[int]:
     """Seasons we currently support pulling. Extend as new seasons air."""
-    return list(range(2018, 2027))
+    return list(range(2018, 2026))
+
+def get_matchups(year: int) -> list[str]:
+    schedule = get_schedules(years=[year])
+    return schedule['game_id'].to_list()
+
+
+# --- Teams ---
 
 def get_teams() -> list[str]:
     teams = get_team_data()
@@ -36,9 +45,11 @@ def get_team_matchups(team: str, year: int) -> list[str]:
     team_matchups = schedules.filter((pl.col('home_team') == team)| (pl.col('away_team') == team))['game_id'].to_list()
     return team_matchups
 
-def get_matchups(year: int) -> list[str]:
-    schedule = get_schedules(years=[year])
-    return schedule['game_id'].to_list()
+def get_team_pbp(year: int, team: str) -> pl.DataFrame:
+    pbp = get_pbp_data(years=[year])
+    return pbp.filter((pl.col('home_team') == team) | (pl.col('away_team') == team))
+
+# --- Matchups ---
 
 def get_matchup_data(year: int, game_id: str) -> pl.DataFrame:
     # Load
@@ -152,6 +163,44 @@ def get_pbp_data(years: list[int]) -> pl.DataFrame:
     )
     pbp_data['On Schedule Play'] = on_schedule_conditions
 
+    # Play locations
+    def run_location(run_location, run_gap):
+        if run_location == 'middle':
+            return 'C'
+        
+        if run_gap == 'end':
+            if run_location == 'left':
+                return 'L END'
+            elif run_location == 'right':
+                return 'R END'
+        elif run_gap == 'tackle':
+            if run_location == 'left':
+                return 'LT'
+            elif run_location == 'right':
+                return 'RT'
+        elif run_gap == 'guard':
+            if run_location == 'left':
+                return 'LG'
+            elif run_location == 'right':
+                return 'RG'
+
+    def pass_length(air_yards):
+        if not air_yards:
+            return
+        
+        # if air_yards <= 0:
+        #     return 'Behind LOS'
+        if air_yards <= 10:
+            return 'Short'
+        elif air_yards <= 20:
+            return 'Medium'
+        else:
+            return 'Long'
+
+    pbp_data['Run Location'] = pbp_data.apply(lambda x: run_location(x['run_location'], x['run_gap']), axis=1)
+
+    pbp_data['Pass Length'] = pbp_data['air_yards'].apply(lambda x: pass_length(x))
+    pbp_data['Pass Location'] = pbp_data['Pass Length'] + ' ' + pbp_data['pass_location'].str.capitalize()
 
     # ---- Cache ----
     pbp_data = pl.DataFrame(pbp_data)

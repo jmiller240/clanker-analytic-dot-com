@@ -13,7 +13,7 @@ import pandas as pd
 import numpy as np
 
 from data.loaders import (
-    get_weekly_data, get_pbp_data
+    get_weekly_data, get_team_data, get_team_pbp, get_pbp_data
 )
 
 
@@ -203,6 +203,40 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = Non
     
     return master
 
+def pass_locations(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
+    # Pass Locations
+    pass_loc_order = ['Short Left', 'Short Middle', 'Short Right', 'Medium Left', 'Medium Middle', 'Medium Right', 'Long Left', 'Long Middle', 'Long Right']
+
+    # Aggregate
+    by_pass_loc = pbp.groupby(gpby_cols + ['Pass Location']).aggregate(
+        Plays=('pass', 'sum'),
+        Yards=('passing_yards', 'sum'),
+        FirstDowns=('first_down', 'sum'),
+        Successes=('success', 'sum'),
+        EPA=('epa', 'sum')
+    ).reindex(pass_loc_order, level='Pass Location')
+
+    # Add'l Stats
+    by_pass_loc['% Plays'] = by_pass_loc['Plays'] / by_pass_loc.groupby(level=0)['Plays'].sum()
+    by_pass_loc['% Yards'] = by_pass_loc['Yards'] / by_pass_loc.groupby(level=0)['Yards'].sum()
+    by_pass_loc['Success Rate'] = by_pass_loc['Successes'] / by_pass_loc['Plays']
+    by_pass_loc['EPA / Play'] = by_pass_loc['EPA'] / by_pass_loc['Plays']
+
+    # %iles
+    for col in ['% Plays', '% Yards', 'Success Rate', 'EPA / Play']:
+        by_pass_loc[f'{col} Percentile'] = by_pass_loc[col].groupby(level='Pass Location').rank(pct=True, ascending=True, method='min')
+
+    # Add'l Cols
+    by_pass_loc['Depth'] = by_pass_loc.index.get_level_values('Pass Location').str.split(' ').str[0]
+    by_pass_loc['Side'] = by_pass_loc.index.get_level_values('Pass Location').str.split(' ').str[1]
+
+    by_pass_loc = by_pass_loc.reset_index().set_index(gpby_cols + ['Depth', 'Side'], append=True)
+    by_pass_loc = by_pass_loc.reindex(labels=['Short', 'Medium', 'Long'], level='Depth')
+    by_pass_loc = by_pass_loc.reindex(labels=['Left', 'Middle', 'Right'], level='Side')
+
+    return by_pass_loc
+
+
 
 # ------- Visual-Ready Functions -------
 
@@ -227,6 +261,24 @@ def top_players_by_stat(
     )
 
     return season_totals
+
+
+
+def team_pass_locations(year: int, team: str):
+
+    # ---- Load Data ----
+
+    team_pbp = get_team_pbp(year=year, team=team).to_pandas()
+
+    # ---- Wrangle ----
+
+    # Pass Locations
+    team_pass_locs = pass_locations(pbp=team_pbp, gpby_cols=['posteam'])
+    team_pass_locs = team_pass_locs[team_pass_locs.index.get_level_values('posteam') == team]
+    
+    return team_pass_locs
+
+
 
 def matchup_offense_advanced_stats(year: int, game_id: str) -> pd.DataFrame:
 

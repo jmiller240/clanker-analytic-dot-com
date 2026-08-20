@@ -46,6 +46,8 @@ def leaderboard_bar_chart(
     return fig
 
 
+
+
 def offense_advanced_team_stats_graphic(data: pd.DataFrame, home_team_dict: dict, away_team_dict: dict):
 
     # ---- Constants ----
@@ -204,7 +206,65 @@ def offense_advanced_team_stats_graphic(data: pd.DataFrame, home_team_dict: dict
 
     return fig
     
+def pass_locations_heatmap(pass_locs: pd.DataFrame, z_col: str) -> go.Figure:
+
+    # ---- Helpers ----
+    pass_len_mapper = {
+        'Short': '0 to 10 yds',
+        'Medium': '10 to 20 yds',
+        'Long': '20+ yds'
+    }
+    def pass_len_mapper_func(pass_len):
+        return pass_len_mapper[pass_len]
+
+    # ---- Data ----
     
+    x = pass_locs.index.get_level_values('Side').to_numpy()
+    y = pass_locs.index.get_level_values('Depth').to_numpy()
+    # y = list(map(pass_len_mapper_func, pass_locs.index.get_level_values('Depth').to_numpy()))
+    z = pass_locs[z_col].to_numpy()
+    text = pass_locs['text'].to_numpy()
+    # headshots = pass_locs['headshot'].to_numpy()
+
+    # ---- Figure ----
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Heatmap(
+            x=x, 
+            y=y, 
+            z=z,
+            text=text,
+            texttemplate="%{text}",
+            coloraxis='coloraxis',
+            xgap=1, ygap=1
+        )
+    )
+
+    fig.update_layout(
+        coloraxis=dict(
+            colorbar=dict(
+                title=dict(
+                text=z_col,
+                font=dict(weight='bold')),
+                tickformat='.0%',
+                dtick=0.1,
+                xanchor='right',
+                yanchor='middle',
+                x=-0.05,
+                xref='paper', yref='paper',
+            ),
+            cmin=0,
+            colorscale=px.colors.diverging.PiYG
+        )
+    )
+
+    return fig
+
+
+# ---- General ----
+
 def tier_chart(data_frame: pd.DataFrame,
                x_col: str,
                y_col: str,
