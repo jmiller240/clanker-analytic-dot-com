@@ -21,19 +21,24 @@ CACHE_DIR.mkdir(exist_ok=True)
 
 
 
-
-
 # --------- Helpers ---------
 
 def available_seasons() -> list[int]:
     """Seasons we currently support pulling. Extend as new seasons air."""
-    return list(range(2018, 2026))
+    return list(range(2018, 2027))
 
+def get_teams() -> list[str]:
+    teams = get_team_data()
+    return teams['team_abbr'].to_list()
+
+def get_team_matchups(team: str, year: int) -> list[str]:
+    schedules = get_schedules(years=[year])
+    team_matchups = schedules.filter((pl.col('home_team') == team)| (pl.col('away_team') == team))['game_id'].to_list()
+    return team_matchups
 
 def get_matchups(year: int) -> list[str]:
     schedule = get_schedules(years=[year])
     return schedule['game_id'].to_list()
-
 
 def get_matchup_data(year: int, game_id: str) -> pl.DataFrame:
     # Load
@@ -57,7 +62,7 @@ def get_matchup_pbp_data(year: int, game_id: str) -> pl.DataFrame:
 # -------- nflreadpy downloaders / cachers ---------
 
 
-def get_teams():
+def get_team_data():
     cache_file = CACHE_DIR / f"teams.parquet"
     
     if cache_file.exists():
@@ -113,11 +118,11 @@ def get_pbp_data(years: list[int]) -> pl.DataFrame:
 
     # Read cached if exists
     if cache_file.exists():
-        print(f'Reading local file')
+        print(f'get_pbp_data Reading local file')
         return pl.read_parquet(cache_file)
 
     # Otherwise download
-    print(f'Downloading data')
+    print(f'get_pbp_data Downloading data')
     pbp_data = nfl.load_pbp(years)
     pbp_data = pbp_data.to_pandas()
 

@@ -45,7 +45,9 @@ server = app.server  # exposed for deployment (gunicorn looks for this)
 navbar = dbc.NavbarSimple(
     children=[
         dbc.NavItem(dbc.NavLink("Home", href="/")),
-        dbc.NavItem(dbc.NavLink("Player Stats", href="/stat_leaders")),
+        dbc.NavItem(dbc.NavLink("League", href="/league")),
+        dbc.NavItem(dbc.NavLink("Teams", href="/teams")),
+        dbc.NavItem(dbc.NavLink("Players", href="/stat_leaders")),
         dbc.NavItem(dbc.NavLink("Matchups", href="/matchups")),
     ],
     brand="🏈 Clanker Analytic",

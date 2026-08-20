@@ -12,8 +12,8 @@ import plotly.io as pio
 import plotly.graph_objects as go
 
 from data.loaders import (
-    available_seasons, get_matchups, get_matchup_data,
-    get_team_data, get_weekly_data
+    available_seasons, get_team_matchups, get_matchup_data,
+    get_teams, get_weekly_data
 )
 from data.transforms import (
     matchup_offense_advanced_stats
@@ -24,9 +24,10 @@ from data.charts import offense_advanced_team_stats_graphic
 # --------- Setup -----------
 
 # Register page
-dash.register_page(__name__, path = '/matchups')
+dash.register_page(__name__, path = '/teams')
 
 # Variables
+teams = get_teams()
 seasons = available_seasons()
 
 
@@ -37,6 +38,19 @@ controls = dbc.Card(
         [
             dbc.Row(
                 [
+                    dbc.Col(
+                        [
+                            html.Label("Team", className="fw-bold"),
+                            dcc.Dropdown(
+                                id="team-dropdown",
+                                options=[{"label": y, "value": y} for y in teams],
+                                value=teams[0],
+                                style=dict(color='black'),
+                                clearable=False,
+                            ),
+                        ],
+                        xs=12, sm=6, md=3, className="mb-3",
+                    ),
                     dbc.Col(
                         [
                             html.Label("Season", className="fw-bold"),
@@ -54,9 +68,9 @@ controls = dbc.Card(
                         [
                             html.Label("Matchup", className="fw-bold"),
                             dcc.Dropdown(
-                                id="matchup-dropdown",
+                                id="team-matchups-dropdown",
                                 style=dict(color='black'),
-                                clearable=False,
+                                clearable=True,
                             ),
                         ],
                         xs=12, sm=6, md=3, className="mb-3",
@@ -102,54 +116,16 @@ layout = dbc.Container(
 
 
 @callback(
-    Output("matchup-dropdown", "options"),
-    Output("matchup-dropdown", "value"),
+    Output("team-matchups-dropdown", "options"),
+    Output("team-matchups-dropdown", "value"),
+    Input("team-dropdown", "value"),
     Input("season-dropdown", "value"),
 )
-def update_matchups_dropdown(season: int):
-    matchups = get_matchups(year=season)
+def update_team_matchups_dropdown(team: str, season: int):
+    matchups = get_team_matchups(team=team, year=season)
 
     if len(matchups) > 0:
         return matchups, matchups[0]
     else:
         return [], None
 
-
-@callback(
-    Output("adv-offense-graphic", "figure"),
-    Input("season-dropdown", "value"),
-    Input("matchup-dropdown", "value"),
-)
-def update_adv_offense_graphic(season: int, matchup: str):
-    print(f'updating adv offense graphic...')
-
-
-    # Matchup info
-    matchup_data = get_matchup_data(year=season, game_id=matchup)
-    home_team = matchup_data['home_team'].first()
-    away_team = matchup_data['away_team'].first()
-
-    # Team info
-    team_data = get_team_data()
-    home_team_data = team_data.filter(pl.col('team_abbr') == home_team)
-    away_team_data = team_data.filter(pl.col('team_abbr') == away_team)
-
-    home_team_dict = dict(
-        abbr=home_team,
-        logo=home_team_data['team_logo_espn'].first(),
-        color=home_team_data['team_color'].first()
-    )
-    away_team_dict = dict(
-        abbr=away_team,
-        logo=away_team_data['team_logo_espn'].first(),
-        color=away_team_data['team_color'].first()
-    )
-
-    # Stats
-    team_stats = matchup_offense_advanced_stats(year=season, game_id=matchup)
-    print(team_stats)
-
-    # Figure
-    figure = offense_advanced_team_stats_graphic(data=team_stats, home_team_dict=home_team_dict, away_team_dict=away_team_dict)
-
-    return figure

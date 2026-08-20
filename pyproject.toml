@@ -17,4 +17,5 @@ dependencies = [
     "pyarrow==25.0.1",
     "requests==2.34.2",
     "scipy>=1.18.0",
+    "stats>=0.1.2a0",
 ]

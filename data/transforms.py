@@ -12,11 +12,8 @@ import polars as pl
 import pandas as pd
 import numpy as np
 
-from scipy.stats import percentileofscore
-
 from data.loaders import (
-    get_weekly_data, get_pbp_data, get_matchup_pbp_data,
-    get_teams
+    get_weekly_data, get_pbp_data
 )
 
 

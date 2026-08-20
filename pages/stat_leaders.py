@@ -8,7 +8,7 @@ import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.io as pio
 
-from data.loaders import available_seasons, get_weekly_data
+from data.loaders import available_seasons
 from data.charts import leaderboard_bar_chart
 from data.constants import POSITION_OPTIONS, STAT_OPTIONS
 from data.transforms import top_players_by_stat
