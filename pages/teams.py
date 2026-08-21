@@ -36,47 +36,43 @@ seasons = available_seasons()
 controls = dbc.Card(
     dbc.CardBody(
         [
-            dbc.Row(
+            dbc.Col(
                 [
-                    dbc.Col(
-                        [
-                            html.Label("Team", className="fw-bold"),
-                            dcc.Dropdown(
-                                id="team-dropdown",
-                                options=[{"label": y, "value": y} for y in teams],
-                                value=teams[0],
-                                style=dict(color='black'),
-                                clearable=False,
-                            ),
-                        ],
-                        xs=12, sm=6, md=3, className="mb-3",
+                    html.Label("Team", className="fw-bold"),
+                    dcc.Dropdown(
+                        id="team-dropdown",
+                        options=[{"label": y, "value": y} for y in teams],
+                        value=teams[0],
+                        style=dict(color='black'),
+                        clearable=False,
                     ),
-                    dbc.Col(
-                        [
-                            html.Label("Season", className="fw-bold"),
-                            dcc.Dropdown(
-                                id="season-dropdown",
-                                options=[{"label": y, "value": y} for y in seasons],
-                                value=seasons[-1],
-                                style=dict(color='black'),
-                                clearable=False,
-                            ),
-                        ],
-                        xs=12, sm=6, md=3, className="mb-3",
+                ],
+                className="mb-3",
+            ),
+            dbc.Col(
+                [
+                    html.Label("Season", className="fw-bold"),
+                    dcc.Dropdown(
+                        id="season-dropdown",
+                        options=[{"label": y, "value": y} for y in seasons],
+                        value=seasons[-1],
+                        style=dict(color='black'),
+                        clearable=False,
                     ),
-                    # dbc.Col(
-                    #     [
-                    #         html.Label("Matchup", className="fw-bold"),
-                    #         dcc.Dropdown(
-                    #             id="team-matchups-dropdown",
-                    #             style=dict(color='black'),
-                    #             clearable=True,
-                    #         ),
-                    #     ],
-                    #     xs=12, sm=6, md=3, className="mb-3",
-                    # ),
-                ]
-            )
+                ],
+                className="mb-3",
+            ),
+            # dbc.Col(
+            #     [
+            #         html.Label("Matchup", className="fw-bold"),
+            #         dcc.Dropdown(
+            #             id="team-matchups-dropdown",
+            #             style=dict(color='black'),
+            #             clearable=True,
+            #         ),
+            #     ],
+            #     xs=12, sm=6, md=3, className="mb-3",
+            # ),
         ]
     ),
     className="mb-4",
@@ -91,7 +87,7 @@ team_pass_locations_graph = dcc.Loading(
         responsive=True,
         config={"displayModeBar": False},
         style={
-            'height': '800px',
+            'height': '400px',
             'width': '100%'
         }
     ),
@@ -100,15 +96,51 @@ team_pass_locations_graph = dcc.Loading(
 
 # -------- Main Layout --------
 
+navbar_col = dbc.Container(
+    [
+        controls
+    ],
+)
+
+content_col = dbc.Container(
+    [   
+        dbc.Row(
+            [
+                dbc.Col(html.Img(id='team-logo-image', style={'height': '60px'}), width=1),
+                dbc.Col([
+                    html.H3(html.Label(id='team-name-label')),
+                    html.H6(html.Label(id='season-label'))
+                ], width=11),
+            ]
+        ),
+        team_pass_locations_graph
+    ],
+    className="pb-5",
+)
+
 layout = dbc.Container(
     [
-        html.Div(style={"height": "20px"}),
-        controls,
-        team_pass_locations_graph
+        html.Div(style={"height": "10px"}),
+        dbc.Row(
+            [
+                dbc.Col(navbar_col, width=3),
+                dbc.Col(content_col, width=9)
+            ],
+        )
     ],
     fluid=True,
     className="pb-5",
 )
+
+# layout = dbc.Container(
+#     [
+#         html.Div(style={"height": "20px"}),
+#         controls,
+#         team_pass_locations_graph
+#     ],
+#     fluid=True,
+#     className="pb-5",
+# )
 
 
 
@@ -127,6 +159,25 @@ layout = dbc.Container(
 #         return matchups, matchups[0]
 #     else:
 #         return [], None
+
+@callback(
+    Output("team-name-label", "children"),
+    Output("team-logo-image", "src"),
+    Input("team-dropdown", "value")
+)
+def update_team_name_label(team_abbr: str) -> tuple[str, str]:
+    team_data = get_team_data().filter(pl.col('team_abbr') == team_abbr)
+    team_name = team_data['team_name'].first()
+    team_logo_espn = team_data['team_logo_espn'].first()
+    return team_name, team_logo_espn
+
+
+@callback(
+    Output("season-label", "children"),
+    Input("season-dropdown", "value")
+)
+def update_team_name_label(season: int) -> int:
+    return season
 
 
 @callback(
@@ -159,7 +210,7 @@ def update_team_pass_locations_graph(team: str, season: int):
 
     fig = pass_locations_heatmap(pass_locs=pass_locations, z_col='% Plays Percentile')
     fig.update_layout(
-        title=f'<b>{team} Pass Locations</b><br><sup>Deeper color indicates percentage of plays relative to league</sup>',
+        title=f'<b>{team} Pass Locations</b><br><sup>Deeper color indicates higher percentage of pass plays relative to league</sup>',
         coloraxis=dict(
             showscale=False,
             colorscale=['white', color]

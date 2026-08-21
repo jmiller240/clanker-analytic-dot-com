@@ -257,7 +257,8 @@ def pass_locations_heatmap(pass_locs: pd.DataFrame, z_col: str) -> go.Figure:
             ),
             cmin=0,
             colorscale=px.colors.diverging.PiYG
-        )
+        ),
+        margin=dict(pad=5)
     )
 
     return fig
