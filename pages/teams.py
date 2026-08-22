@@ -16,9 +16,9 @@ from data.loaders import (
     get_teams, get_team_data
 )
 from data.transforms import (
-    team_pass_locations
+    team_pass_locations, team_run_locations
 )
-from data.charts import pass_locations_heatmap
+from data.charts import pass_locations_heatmap, run_locations_heatmap
 
 
 # --------- Setup -----------
@@ -79,7 +79,13 @@ controls = dbc.Card(
 )
 
 
-# --------- Graph ----------
+# --------- Graphs ----------
+
+# ---- Season Stats ----
+
+# ---- Form ----
+
+# ---- Tendencies ----
 
 team_pass_locations_graph = dcc.Loading(
     dcc.Graph(
@@ -94,6 +100,21 @@ team_pass_locations_graph = dcc.Loading(
     type="default",
 )
 
+team_run_locations_graph = dcc.Loading(
+    dcc.Graph(
+        id="team-run-locations-graph", 
+        responsive=True,
+        config={"displayModeBar": False},
+        style={
+            'height': '400px',
+            'width': '100%'
+        }
+    ),
+    type="default",
+)
+
+
+
 # -------- Main Layout --------
 
 navbar_col = dbc.Container(
@@ -103,7 +124,7 @@ navbar_col = dbc.Container(
 )
 
 content_col = dbc.Container(
-    [   
+    [
         dbc.Row(
             [
                 dbc.Col(html.Img(id='team-logo-image', style={'height': '60px'}), width=1),
@@ -113,7 +134,8 @@ content_col = dbc.Container(
                 ], width=11),
             ]
         ),
-        team_pass_locations_graph
+        team_pass_locations_graph,
+        team_run_locations_graph
     ],
     className="pb-5",
 )
@@ -146,19 +168,7 @@ layout = dbc.Container(
 
 # --------- Callbacks ---------
 
-# @callback(
-#     Output("team-matchups-dropdown", "options"),
-#     Output("team-matchups-dropdown", "value"),
-#     Input("team-dropdown", "value"),
-#     Input("season-dropdown", "value"),
-# )
-# def update_team_matchups_dropdown(team: str, season: int):
-#     matchups = get_team_matchups(team=team, year=season)
-
-#     if len(matchups) > 0:
-#         return matchups, matchups[0]
-#     else:
-#         return [], None
+# ---- Page Info ----
 
 @callback(
     Output("team-name-label", "children"),
@@ -171,14 +181,15 @@ def update_team_name_label(team_abbr: str) -> tuple[str, str]:
     team_logo_espn = team_data['team_logo_espn'].first()
     return team_name, team_logo_espn
 
-
 @callback(
     Output("season-label", "children"),
     Input("season-dropdown", "value")
 )
-def update_team_name_label(season: int) -> int:
+def update_season_label(season: int) -> int:
     return season
 
+
+# ---- Charts ----
 
 @callback(
     Output("team-pass-locations-graph", "figure"),
@@ -196,6 +207,8 @@ def update_team_pass_locations_graph(team: str, season: int):
 
     # Pass Locs 
     pass_locations = team_pass_locations(year=season, team=team)
+
+    print(pass_locations)
 
     def text(row):
         pct_plays = row['% Plays']
@@ -220,3 +233,43 @@ def update_team_pass_locations_graph(team: str, season: int):
     return fig
 
 
+@callback(
+    Output("team-run-locations-graph", "figure"),
+    Input("team-dropdown", "value"),
+    Input("season-dropdown", "value"),
+)
+def update_team_run_locations_graph(team: str, season: int):
+    print(f'updating run locs chart...')
+
+    # ---- Get Data ----
+
+    # Team data
+    team_data = get_team_data().filter(pl.col('team_abbr') == team)
+    color = team_data['team_color'].first()
+
+    # Pass Locs 
+    run_locations = team_run_locations(year=season, team=team)
+
+    def text(row):
+        pct_plays = row['% Plays']
+        yards = row['Yards']
+        sr = row['Success Rate']
+        epa = row['EPA / Play']
+        stfrt = row['Stuff Rate']
+        return f'Pct Plays: {pct_plays:.0%}<br>Yards: {yards:.0f}<br>Success Rate: {sr:.1%}<br>EPA / Play: {epa:.1f}<br>Stuff Rate: {stfrt:.1%}'
+    
+    run_locations['text'] = run_locations.apply(lambda x: text(x), axis=1)
+    print(run_locations)
+    
+    # ---- Visualize ----
+
+    fig = run_locations_heatmap(run_locations, z_col='% Plays Percentile')
+    fig.update_layout(
+        title=f'<b>{team} Run Locations</b><br><sup>Deeper color indicates higher percentage of run plays relative to league</sup>',
+        coloraxis=dict(
+            showscale=False,
+            colorscale=['white', color]
+        )
+    )
+
+    return fig

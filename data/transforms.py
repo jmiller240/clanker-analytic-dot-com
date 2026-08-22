@@ -204,37 +204,81 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = Non
     return master
 
 def pass_locations(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
-    # Pass Locations
-    pass_loc_order = ['Short Left', 'Short Middle', 'Short Right', 'Medium Left', 'Medium Middle', 'Medium Right', 'Long Left', 'Long Middle', 'Long Right']
+
+    def pass_len(air_yards: int):
+        if air_yards < 0:
+            return 'Behind LOS'
+        elif air_yards <= 7:
+            return '0 to 7'
+        elif air_yards <= 15:
+            return '8 to 15'
+        elif air_yards <= 25:
+            return '16 to 25'
+        else:
+            return '> 25'
+
+    pbp['pass len'] = pbp['air_yards'].apply(lambda x: pass_len(x))
+    pbp['Pass Loc'] = pbp['pass len'] + ' ' + pbp['pass_location'].str.capitalize()
 
     # Aggregate
-    by_pass_loc = pbp.groupby(gpby_cols + ['Pass Location']).aggregate(
+    pass_loc_levels = ['pass_location', 'pass len']     #['Pass Location']
+    by_pass_loc = pbp[pbp['pass'] == 1].groupby(gpby_cols + pass_loc_levels).aggregate(  
         Plays=('pass', 'sum'),
         Yards=('passing_yards', 'sum'),
         FirstDowns=('first_down', 'sum'),
         Successes=('success', 'sum'),
         EPA=('epa', 'sum')
-    ).reindex(pass_loc_order, level='Pass Location')
+    )
 
     # Add'l Stats
-    by_pass_loc['% Plays'] = by_pass_loc['Plays'] / by_pass_loc.groupby(level=0)['Plays'].sum()
-    by_pass_loc['% Yards'] = by_pass_loc['Yards'] / by_pass_loc.groupby(level=0)['Yards'].sum()
+    by_pass_loc['% Plays'] = by_pass_loc['Plays'] / by_pass_loc.groupby(level=gpby_cols)['Plays'].sum()
+    by_pass_loc['% Yards'] = by_pass_loc['Yards'] / by_pass_loc.groupby(level=gpby_cols)['Yards'].sum()
     by_pass_loc['Success Rate'] = by_pass_loc['Successes'] / by_pass_loc['Plays']
     by_pass_loc['EPA / Play'] = by_pass_loc['EPA'] / by_pass_loc['Plays']
 
     # %iles
     for col in ['% Plays', '% Yards', 'Success Rate', 'EPA / Play']:
-        by_pass_loc[f'{col} Percentile'] = by_pass_loc[col].groupby(level='Pass Location').rank(pct=True, ascending=True, method='min')
+        by_pass_loc[f'{col} Percentile'] = by_pass_loc[col].groupby(level=pass_loc_levels).rank(pct=True, ascending=True, method='min')
 
-    # Add'l Cols
-    by_pass_loc['Depth'] = by_pass_loc.index.get_level_values('Pass Location').str.split(' ').str[0]
-    by_pass_loc['Side'] = by_pass_loc.index.get_level_values('Pass Location').str.split(' ').str[1]
+    # Final Shape
+    # by_pass_loc['Depth'] = by_pass_loc.index.get_level_values('Pass Location').str.split(' ').str[0]
+    # by_pass_loc['Side'] = by_pass_loc.index.get_level_values('Pass Location').str.split(' ').str[1]
+    # by_pass_loc = by_pass_loc.reset_index().set_index(gpby_cols + ['Depth', 'Side'], append=True)
+    # by_pass_loc = by_pass_loc.reindex(labels=['Short', 'Medium', 'Long'], level='Depth')
+    # by_pass_loc = by_pass_loc.reindex(labels=['Left', 'Middle', 'Right'], level='Side')
 
-    by_pass_loc = by_pass_loc.reset_index().set_index(gpby_cols + ['Depth', 'Side'], append=True)
-    by_pass_loc = by_pass_loc.reindex(labels=['Short', 'Medium', 'Long'], level='Depth')
-    by_pass_loc = by_pass_loc.reindex(labels=['Left', 'Middle', 'Right'], level='Side')
+    by_pass_loc = by_pass_loc.reindex(labels=['Behind LOS', '0 to 7', '8 to 15', '16 to 25', '> 25'], level='pass len')
+    by_pass_loc = by_pass_loc.reindex(labels=['left', 'middle', 'right'], level='pass_location')
+    by_pass_loc.index.names = ['posteam', 'Side', 'Depth']
 
     return by_pass_loc
+
+def run_locations(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
+    # Run Locs
+    run_loc_order = ['L END', 'LT', 'LG', 'C', 'RG', 'RT', 'R END']
+
+    # Aggregate
+    by_run_loc = pbp.groupby(gpby_cols + ['Run Location']).aggregate(
+        Plays=('rush', 'sum'),
+        Yards=('rushing_yards', 'sum'),
+        FirstDowns=('first_down', 'sum'),
+        Successes=('success', 'sum'),
+        EPA=('epa', 'sum'),
+        Stuffs=('rush', lambda x: x[(pbp['rushing_yards'] <= 0)].sum())
+    ).reindex(labels=run_loc_order, level='Run Location')
+
+    # Add'l Stats
+    by_run_loc['% Plays'] = by_run_loc['Plays'] / by_run_loc.groupby(level=gpby_cols)['Plays'].sum()
+    by_run_loc['% Yards'] = by_run_loc['Yards'] / by_run_loc.groupby(level=gpby_cols)['Yards'].sum()
+    by_run_loc['Success Rate'] = by_run_loc['Successes'] / by_run_loc['Plays']
+    by_run_loc['EPA / Play'] = by_run_loc['EPA'] / by_run_loc['Plays']
+    by_run_loc['Stuff Rate'] = by_run_loc['Stuffs'] / by_run_loc['Plays']
+
+    # %iles
+    for col in ['% Plays', '% Yards', 'Success Rate', 'EPA / Play', 'Stuff Rate']:
+        by_run_loc[f'{col} Percentile'] = by_run_loc[col].groupby(level='Run Location').rank(pct=True, ascending=True, method='min')
+
+    return by_run_loc
 
 
 
@@ -262,8 +306,6 @@ def top_players_by_stat(
 
     return season_totals
 
-
-
 def team_pass_locations(year: int, team: str):
 
     # ---- Load Data ----
@@ -278,6 +320,19 @@ def team_pass_locations(year: int, team: str):
     
     return team_pass_locs
 
+def team_run_locations(year: int, team: str):
+
+    # ---- Load Data ----
+
+    team_pbp = get_team_pbp(year=year, team=team).to_pandas()
+
+    # ---- Wrangle ----
+
+    # Run Locations
+    team_run_locs = run_locations(pbp=team_pbp, gpby_cols=['posteam'])
+    team_run_locs = team_run_locs[team_run_locs.index.get_level_values('posteam') == team]
+    
+    return team_run_locs
 
 
 def matchup_offense_advanced_stats(year: int, game_id: str) -> pd.DataFrame:

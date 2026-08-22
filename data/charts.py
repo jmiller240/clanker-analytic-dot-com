@@ -263,6 +263,37 @@ def pass_locations_heatmap(pass_locs: pd.DataFrame, z_col: str) -> go.Figure:
 
     return fig
 
+def run_locations_heatmap(run_locs: pd.DataFrame, z_col: str) -> go.Figure:
+
+    # ---- Data ----
+
+    x = run_locs.index.get_level_values('Run Location').to_numpy()
+    y = run_locs.index.get_level_values('posteam').unique().to_numpy()
+    z = run_locs[[z_col]].transpose().to_numpy()
+    text = run_locs[['text']].transpose().to_numpy()
+
+    # ---- Figure ----
+    
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Heatmap(
+            x=x,
+            y=y,
+            z=z,
+            text=text,
+            texttemplate="%{text}",
+            coloraxis='coloraxis',
+            xgap=1, ygap=1
+        )
+    )
+
+    fig.update_layout(
+        margin=dict(pad=5)
+    )
+
+    return fig
+
 
 # ---- General ----
 
