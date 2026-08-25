@@ -13,7 +13,8 @@ import pandas as pd
 import numpy as np
 
 from data.loaders import (
-    get_weekly_data, get_team_data, get_team_pbp, get_pbp_data
+    get_weekly_data, get_team_data, get_team_pbp, get_pbp_data,
+    get_player_data
 )
 
 
@@ -52,54 +53,59 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = Non
         print(f'get_team_stats missing columns={missing_cols}')
         raise KeyError(f'get_team_stats missing columns={missing_cols}')
     
+    # ---- Variables / Data ----
     ROUND = 3
 
     unit_col = 'posteam' if unit == 'offense' else 'defteam'
     if not gpby_cols:
         gpby_cols = [unit_col]
 
-    ## Standard ##
-    team_standard = pbp_data.loc[(~pbp_data['Is Special Teams Play']), :].groupby(gpby_cols).aggregate(
+    non_st_slice = pbp_data[pbp_data['Is Special Teams Play'] == 0]
+    advanced_slice = pbp_data[(pbp_data['Offensive Snap'] == 1) & (pbp_data['Is Special Teams Play'] == 0)]
+
+    # ---- Standard ----
+
+    team_standard = non_st_slice.groupby(gpby_cols).aggregate(
         Games=('game_id', 'nunique'),
-        Plays=('posteam', lambda x: x[(pbp_data['rush_attempt'] == 1) | (pbp_data['pass_attempt'] == 1)].shape[0]),
-        OnSchedulePlays=('posteam', lambda x: x[(pbp_data['On Schedule Play'])].shape[0]),
+        Plays=('posteam', lambda x: x[(non_st_slice['rush_attempt'] == 1) | (non_st_slice['pass_attempt'] == 1)].shape[0]),
+        OnSchedulePlays=('posteam', lambda x: x[non_st_slice['On Schedule Play'] == 1].shape[0]),
         Yards=('yards_gained', 'sum'),
         TDs=('touchdown', 'sum'),
         FirstDowns=('first_down', 'sum'),
         ExplosivePlays=('Explosive Play', 'sum'),
-        ThirdDownAtts=('posteam', lambda x: x[(pbp_data['third_down_converted'] == 1) | (pbp_data['third_down_failed'] == 1)].shape[0]),
+        ThirdDownAtts=('posteam', lambda x: x[(non_st_slice['third_down_converted'] == 1) | (non_st_slice['third_down_failed'] == 1)].shape[0]),
         ThirdDownConvs=('third_down_converted', 'sum'),
 
         RushAttempts=('rush_attempt', 'sum'),
         RushYards=('rushing_yards', 'sum'),
         RushTDs=('rush_touchdown', 'sum'),
         Rush1Ds=('first_down_rush', 'sum'),
-        ExplosiveRushes=('Explosive Play', lambda x: x[pbp_data['rush_attempt'] == 1].sum()),
-        StuffedRushes=('rush_attempt', lambda x: x[pbp_data['rushing_yards'] <= 0].sum()),
+        ExplosiveRushes=('Explosive Play', lambda x: x[non_st_slice['rush_attempt'] == 1].sum()),
+        StuffedRushes=('rush_attempt', lambda x: x[non_st_slice['rushing_yards'] <= 0].sum()),
         DesignedRushPlays=('rush', 'sum'),
-        DesignedRushAttempts=('rush_attempt', lambda x: x[pbp_data['rush'] == 1].sum()),
-        DesignedRushYards=('rushing_yards', lambda x: x[(pbp_data['rush'] == 1)].sum()),
-        QBScrambles=('qb_scramble', lambda x: x[pbp_data['rush_attempt'] == 1].sum()),
-        ScrambleYards=('rushing_yards', lambda x: x[(pbp_data['qb_scramble'] == 1) & (pbp_data['rush_attempt'] == 1)].sum()),
+        DesignedRushAttempts=('rush_attempt', lambda x: x[non_st_slice['rush'] == 1].sum()),
+        DesignedRushYards=('rushing_yards', lambda x: x[(non_st_slice['rush'] == 1)].sum()),
+        QBScrambles=('qb_scramble', lambda x: x[non_st_slice['rush_attempt'] == 1].sum()),
+        ScrambleYards=('rushing_yards', lambda x: x[(non_st_slice['qb_scramble'] == 1) & (non_st_slice['rush_attempt'] == 1)].sum()),
 
         DesignedPassPlays=('pass', 'sum'),
         Dropbacks=('qb_dropback', 'sum'),
         PassCompletions=('complete_pass', 'sum'),
         PassAttempts=('pass_attempt', 'sum'),
-        PassYards=('passing_yards', 'sum'), # lambda x: x[pbp_data['pass'] == 1].sum()),
+        PassYards=('passing_yards', 'sum'),
         PassTDs=('pass_touchdown', 'sum'),
         Pass1Ds=('first_down_pass', 'sum'),
-        ExplosivePasses=('Explosive Play', lambda x: x[pbp_data['pass_attempt'] == 1].sum()),
+        ExplosivePasses=('Explosive Play', lambda x: x[non_st_slice['pass_attempt'] == 1].sum()),
 
         Sacks=('sack', 'sum'),
-        SackYards=('yards_gained', lambda x: x[pbp_data['sack'] == 1].sum()),
+        SackYards=('yards_gained', lambda x: x[non_st_slice['sack'] == 1].sum()),
         INTs=('interception', 'sum'),
 
         TFLs=('tackled_for_loss', 'sum'),
         Fumbles=('fumble_lost', 'sum'),
 
-        Penalties=('penalty', lambda x: x[pbp_data['penalty_team'] == pbp_data[unit_col]].sum()),
-        PenaltyYards=('penalty_yards', lambda x: x[pbp_data['penalty_team'] == pbp_data[unit_col]].sum()),
+        Penalties=('penalty', lambda x: x[non_st_slice['penalty_team'] == non_st_slice[unit_col]].sum()),
+        PenaltyYards=('penalty_yards', lambda x: x[non_st_slice['penalty_team'] == non_st_slice[unit_col]].sum()),
         Penalty1Ds=('first_down_penalty', 'sum'),
 
         Drives=('Master Drive ID', 'nunique'),
@@ -161,8 +167,9 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = Non
 
     team_standard['Drives / Game'] = team_standard['Drives'] / team_standard['Games']
 
-    ## Advanced ##
-    team_advanced = pbp_data.loc[(pbp_data['Offensive Snap']) & (~pbp_data['Is Special Teams Play']), :].groupby(gpby_cols).aggregate(
+    # ---- Advanced ----
+
+    team_advanced = advanced_slice.groupby(gpby_cols).aggregate(
         PlaysAdv=('posteam', 'size'),
         PassPlays=('pass', 'sum'),
         RushPlays=('rush', 'sum'),
@@ -200,8 +207,128 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = Non
     ## Master ##
     master = team_standard.join(team_advanced, on=gpby_cols)
     master = master.sort_index()
-    
+
     return master
+
+
+def get_player_stats(pbp_data: pd.DataFrame) -> pd.DataFrame:
+
+    # ---- Get Data --- #
+
+    player_info = get_player_data().to_pandas().set_index('gsis_id').rename_axis(index={'gsis_id': 'player_id'})
+    team_info = get_team_data().to_pandas().set_index('team_abbr')
+
+    # Run / Pass
+    run_data = pbp_data[pbp_data['rush'] == 1]
+    pass_data = pbp_data[pbp_data['pass'] == 1]
+
+    # ---- Passing ----
+
+    by_passer = pass_data.groupby(['posteam', 'passer_player_id']).aggregate(
+        Plays=('pass', 'sum'),
+        Attempts=('pass_attempt', 'sum'),
+        Completions=('complete_pass', 'sum'),
+        Yards=('passing_yards', 'sum'),
+        TDs=('touchdown', 'sum'),
+        INTs=('interception', 'sum'),
+        Sacks=('sack', 'sum'),
+        SackYards=('yards_gained', lambda x: x[pass_data['sack'] == 1].sum()),
+        FirstDowns=('first_down', 'sum'),
+        Successes=('success', 'sum'),
+        EPA=('epa', 'sum'),
+    )
+    by_passer['Attempts'] = by_passer['Attempts'] - by_passer['Sacks']
+
+    by_passer['Yds / Att'] = round(by_passer['Yards'] / by_passer['Attempts'], 2)
+    by_passer['Success Rate'] = round((by_passer['Successes'] / by_passer['Plays']) * 100, 2)
+    by_passer['EPA / Play'] = round((by_passer['EPA'] / by_passer['Plays']), 2)
+    by_passer['1D Rate'] = round((by_passer['FirstDowns'] / by_passer['Attempts']) * 100, 2)
+    by_passer['TD Rate'] = round((by_passer['TDs'] / by_passer['Attempts']) * 100, 2)
+
+    # ---- Receiving ----
+
+    by_receiver = pass_data.groupby(['posteam', 'receiver_player_id']).aggregate(
+        Plays=('pass', 'sum'),
+        Targets=('pass_attempt', 'sum'),
+        Receptions=('complete_pass', 'sum'),
+        Yards=('yards_gained', 'sum'),
+        TDs=('touchdown', 'sum'),
+        FirstDowns=('first_down', 'sum'),
+        Successes=('success', 'sum'),
+        EPA=('epa', 'sum'),
+    ).sort_values(by=['posteam', 'Targets'], ascending=False)
+
+    by_receiver['Yds / Rec'] = round(by_receiver['Yards'] / by_receiver['Receptions'], 2)
+    by_receiver['Success Rate'] = round((by_receiver['Successes'] / by_receiver['Plays']) * 100, 2)
+    by_receiver['EPA / Play'] = round((by_receiver['EPA'] / by_receiver['Plays']), 2)
+    by_receiver['1D Rate'] = round((by_receiver['FirstDowns'] / by_receiver['Plays']) * 100, 2)
+    by_receiver['TD Rate'] = round((by_receiver['TDs'] / by_receiver['Plays']) * 100, 2)
+
+    # ---- Rushing ----
+
+    by_rusher = run_data.groupby(['posteam', 'rusher_player_id']).aggregate(
+        Plays=('rush', 'sum'),
+        Attempts=('rush_attempt', 'sum'),
+        Yards=('rushing_yards', 'sum'),
+        TDs=('touchdown', 'sum'),
+        FirstDowns=('first_down', 'sum'),
+        Successes=('success', 'sum'),
+        EPA=('epa', 'sum'),
+    ).sort_values(by=['posteam', 'Attempts'], ascending=False)
+
+    by_rusher['Yds / Att'] = round(by_rusher['Yards'] / by_rusher['Attempts'], 2)
+    by_rusher['Success Rate'] = round((by_rusher['Successes'] / by_rusher['Attempts']) * 100, 2)
+    by_rusher['EPA / Play'] = round((by_rusher['EPA'] / by_rusher['Plays']), 2)
+    by_rusher['1D Rate'] = round((by_rusher['FirstDowns'] / by_rusher['Attempts']) * 100, 2)
+    by_rusher['TD Rate'] = round((by_rusher['TDs'] / by_rusher['Attempts']) * 100, 2)
+
+    # ---- Combine ----
+
+    # Prep
+    by_passer = by_passer.rename_axis(index={'posteam': 'team', 'passer_player_id': 'player_id'})
+    by_passer.columns = ['Passing ' + col for col in by_passer.columns]
+
+    by_receiver = by_receiver.rename_axis(index={'posteam': 'team', 'receiver_player_id': 'player_id'})
+    by_receiver.columns = ['Receiving ' + col for col in by_receiver.columns]
+
+    by_rusher = by_rusher.rename_axis(index={'posteam': 'team', 'rusher_player_id': 'player_id'})
+    by_rusher.columns = ['Rushing ' + col for col in by_rusher.columns]
+
+    # Start DF
+    # NOTE - full list of team / player (in case player plays for multiple teams in season)
+    full_index = by_passer.index.union(by_receiver.index).union(by_rusher.index)
+    player_stats = pd.DataFrame(index=full_index)
+
+    player_stats = player_stats.join(player_info[['display_name', 'position', 'headshot']],
+                                     on='player_id', how='left')
+                                   
+    # Add stats
+    player_stats = player_stats.join(by_passer, on=['team', 'player_id'], how='outer')
+    player_stats = player_stats.join(by_receiver, on=['team', 'player_id'], how='outer')
+    player_stats = player_stats.join(by_rusher, on=['team', 'player_id'], how='outer')
+
+    # Totals
+    player_stats = player_stats.fillna(0)
+    for col in ['Plays', 'Yards', 'TDs', 'FirstDowns', 'EPA', 'Successes']:
+        player_stats[f'Total {col}'] = player_stats[f'Passing {col}'] + player_stats[f'Receiving {col}'] + player_stats[f'Rushing {col}']
+
+        if col != 'Plays':
+            player_stats[f'{col} / Play'] = player_stats[f'Total {col}'] / player_stats[f'Total Plays']
+    
+    player_stats = player_stats.rename(columns={
+        'TDs / Play': 'TD Rate',
+        'Successes / Play': 'Success Rate',
+        'FirstDowns / Play': '1D Rate',
+    })
+    player_stats = player_stats.sort_values(by='Total EPA', ascending=False)
+
+    # Logos / Headshots / Colors
+    player_stats['team_logo_espn'] = player_stats.index.get_level_values('team').map(team_info['team_logo_espn'])
+    player_stats['team_color'] = player_stats.index.get_level_values('team').map(team_info['team_color'])
+
+    return player_stats
+
+
 
 def pass_locations(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
 
@@ -280,6 +407,8 @@ def run_locations(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
 
     return by_run_loc
 
+def top_receivers(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
+    pass
 
 
 # ------- Visual-Ready Functions -------

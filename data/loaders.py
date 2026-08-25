@@ -86,6 +86,19 @@ def get_team_data():
 
     return df
 
+def get_player_data():
+    cache_file = CACHE_DIR / f"players.parquet"
+        
+    if cache_file.exists():
+        print(f'Reading local file')
+        return pl.read_parquet(cache_file)
+
+    print(f'Downloading data')
+    df = nfl.load_players()
+    df.write_parquet(cache_file)
+
+    return df
+
 def get_schedules(years: list[int]) -> pl.DataFrame:
 
     cache_file = CACHE_DIR / f"schedule_{min(years)}_{max(years)}.parquet"
@@ -99,6 +112,7 @@ def get_schedules(years: list[int]) -> pl.DataFrame:
     df.write_parquet(cache_file)
 
     return df
+
 
 def get_weekly_data(years: list[int]) -> pl.DataFrame:
     """
@@ -145,11 +159,11 @@ def get_pbp_data(years: list[int]) -> pl.DataFrame:
     # )
 
     # Snaps
-    pbp_data['Offensive Snap'] = (((pbp_data['pass'] == 1) | (pbp_data['rush'] == 1)) & (pbp_data['epa'].notna()))
+    pbp_data['Offensive Snap'] = np.where(((pbp_data['pass'] == 1) | (pbp_data['rush'] == 1)) & (pbp_data['epa'].notna()), 1, 0)
 
     # Flag for special teams
     special_conditions = ((pbp_data['play_type_nfl'].isin(PLAY_TYPES_SPECIAL)) | (pbp_data['special_teams_play'] == 1))
-    pbp_data['Is Special Teams Play'] = special_conditions
+    pbp_data['Is Special Teams Play'] = np.where(special_conditions, 1, 0)
     
     # Explosives
     pbp_data['Explosive Play'] = np.where(pbp_data['yards_gained'] >= 15, 1, 0)
@@ -161,7 +175,7 @@ def get_pbp_data(years: list[int]) -> pl.DataFrame:
         ((pbp_data['down'] == 3) & (pbp_data['ydstogo'] <= 4)) | 
         ((pbp_data['down'] == 4) & (pbp_data['ydstogo'] <= 2))
     )
-    pbp_data['On Schedule Play'] = on_schedule_conditions
+    pbp_data['On Schedule Play'] = np.where(on_schedule_conditions, 1, 0)
 
     # Play locations
     def run_location(run_location, run_gap):

@@ -13,12 +13,12 @@ import plotly.graph_objects as go
 
 from data.loaders import (
     available_seasons, get_team_matchups, get_matchup_data,
-    get_teams, get_team_data
+    get_teams, get_team_data, get_team_pbp, get_pbp_data
 )
 from data.transforms import (
     team_pass_locations, team_run_locations
 )
-from data.charts import pass_locations_heatmap, run_locations_heatmap
+from data.charts import team_form_chart, pass_locations_heatmap, run_locations_heatmap
 
 
 # --------- Setup -----------
@@ -85,6 +85,32 @@ controls = dbc.Card(
 
 # ---- Form ----
 
+team_form_offense_graph = dcc.Loading(
+    dcc.Graph(
+        id="team-form-offense-graph", 
+        responsive=True,
+        config={"displayModeBar": False},
+        style={
+            'height': '400px',
+            'width': '100%'
+        }
+    ),
+    type="default",
+)
+
+team_form_defense_graph = dcc.Loading(
+    dcc.Graph(
+        id="team-form-defense-graph", 
+        responsive=True,
+        config={"displayModeBar": False},
+        style={
+            'height': '400px',
+            'width': '100%'
+        }
+    ),
+    type="default",
+)
+
 # ---- Tendencies ----
 
 team_pass_locations_graph = dcc.Loading(
@@ -114,8 +140,7 @@ team_run_locations_graph = dcc.Loading(
 )
 
 
-
-# -------- Main Layout --------
+# -------- Navbar --------
 
 navbar_col = dbc.Container(
     [
@@ -123,8 +148,13 @@ navbar_col = dbc.Container(
     ],
 )
 
-content_col = dbc.Container(
-    [
+
+# -------- Content --------
+
+# ---- Header ----
+
+page_header = dbc.Card(
+    dbc.CardBody(
         dbc.Row(
             [
                 dbc.Col(html.Img(id='team-logo-image', style={'height': '60px'}), width=1),
@@ -133,12 +163,56 @@ content_col = dbc.Container(
                     html.H6(html.Label(id='season-label'))
                 ], width=11),
             ]
-        ),
+        )
+    )
+)
+
+
+# ---- Page Content ----
+
+form_tab_content = dbc.Container(
+    [
+        team_form_offense_graph,
+        team_form_defense_graph
+    ],
+    className="pb-5"
+)
+
+tendencies_tab_content = dbc.Container(
+    [
         team_pass_locations_graph,
         team_run_locations_graph
     ],
+    className="pb-5"
+)
+
+tabs = dbc.Tabs(
+    [
+        dbc.Tab(form_tab_content, label="Form", id='form-tab'),
+        dbc.Tab(tendencies_tab_content, label="Tendencies", id='tendencies-tab')
+    ],
+    active_tab="form-tab",
+)
+
+tabs_container = dbc.Card(
+    dbc.CardBody([tabs]),
+    className="mt-3",
+)
+
+
+# ---- Main ----
+
+content_col = dbc.Container(
+    [
+        page_header,
+        tabs_container
+    ],
     className="pb-5",
 )
+
+
+# -------- Page Layout --------
+# navbar |       Content col
 
 layout = dbc.Container(
     [
@@ -190,6 +264,61 @@ def update_season_label(season: int) -> int:
 
 
 # ---- Charts ----
+
+@callback(
+    Output("team-form-offense-graph", "figure"),
+    Output("team-form-defense-graph", "figure"),
+    Input("team-dropdown", "value"),
+    Input("season-dropdown", "value"),
+)
+def update_team_form_graphs(team: str, season: int):
+    print(f'updating team form charts...')
+
+    # ---- Get Data ----
+
+    pbp = get_team_pbp(year=season, team=team).select(['game_id', 'start_time', 'posteam', 'defteam', 'epa', 'Offensive Snap', 'Is Special Teams Play'])
+    team_data = get_team_data()
+
+    # ---- Wrangle ----
+
+    # Filter
+    pbp_off = pbp.filter(pl.col('posteam') == team, pl.col('Offensive Snap') == 1, pl.col('Is Special Teams Play') == 0)
+    pbp_def = pbp.filter(pl.col('defteam') == team, pl.col('Offensive Snap') == 1, pl.col('Is Special Teams Play') == 0)
+    
+    # Columns
+    pbp_off = pbp_off.with_columns(
+        # Play Number
+        pl.row_index().add(1).alias('Play Number'),
+
+        # Rolling EPA
+        pl.col('epa').rolling_mean(window_size=30).alias('Rolling EPA / Play')
+    )
+
+    pbp_def = pbp_def.with_columns(
+        # Play Number
+        pl.row_index().add(1).alias('Play Number'),
+
+        # Rolling EPA
+        pl.col('epa').rolling_mean(window_size=30).alias('Rolling EPA / Play')
+    )
+
+    # Add opponent team info to pbp
+    pbp_off = pbp_off.join(team_data.select(['team_abbr', 'team_color', 'team_logo_espn']), left_on=['defteam'], right_on=['team_abbr'], how='left').rename({'team_color': 'opp_color', 'team_logo_espn': 'opp_logo'})
+    pbp_def = pbp_def.join(team_data.select(['team_abbr', 'team_color', 'team_logo_espn']), left_on=['posteam'], right_on=['team_abbr'], how='left').rename({'team_color': 'opp_color', 'team_logo_espn': 'opp_logo'})
+
+    team_data = team_data.filter(pl.col('team_abbr') == team)
+    team_dict = dict(
+        wordmark=team_data['team_wordmark'].first()
+    )  
+
+    # ---- Visualize ----
+
+    offense_form_chart = team_form_chart(pbp=pbp_off.to_pandas(), team_dict=team_dict, unit='offense', n_games=8)
+    defense_form_chart = team_form_chart(pbp=pbp_def.to_pandas(), team_dict=team_dict, unit='defense', n_games=8)
+
+    return offense_form_chart, defense_form_chart
+
+
 
 @callback(
     Output("team-pass-locations-graph", "figure"),

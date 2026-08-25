@@ -111,27 +111,21 @@ def update_offense_tiers_chart(season: int):
     # ---- Get Data ----
 
     pbp = get_pbp_data(years=[season])
-    print(pbp)
     team_data = get_team_data().to_pandas().set_index('team_abbr')
-    print(team_data)
 
     # ---- Transform ----
 
     # Calc stats
     team_offense = get_team_stats(pbp.to_pandas(), unit='offense')
-    print(team_offense)
 
     team_offense = team_offense.merge(team_data[['team_logo_espn', 'team_wordmark']], left_index=True, right_index=True)
     team_offense['Rush Att / Game'] = team_offense['RushAttempts'] / team_offense['Games']
     team_offense['Pass Att / Game'] = team_offense['PassAttempts'] / team_offense['Games']
 
-    print(team_offense)
-
     # ---- Visualize ----
 
     thru_week = pbp['week'].max()
 
-    print(f'tier chart...')
     fig = tier_chart(
         data_frame=team_offense,
         x_col='Pass EPA / Play',
@@ -154,8 +148,6 @@ def update_offense_tiers_chart(season: int):
     fig.update_annotations(y=-.1)
 
     return fig
-
-
 
 @callback(
     Output("defense-tiers-chart", "figure"),

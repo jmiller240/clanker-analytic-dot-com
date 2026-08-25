@@ -205,6 +205,148 @@ def offense_advanced_team_stats_graphic(data: pd.DataFrame, home_team_dict: dict
     )
 
     return fig
+
+
+
+
+def team_form_chart(pbp: pd.DataFrame, team_dict: dict, unit: str = 'offense', n_games: int = 8) -> go.Figure:
+
+    # ---- Variables ----
+
+    team_unit_col = 'posteam' if unit == 'offense' else 'defteam'
+    opp_unit_col = 'defteam' if unit == 'offense' else 'posteam'
+
+    # ---- Data ----
+
+    # Filter to Last n games
+    last_n_games = pbp[['game_id', 'start_time']].drop_duplicates().tail(n_games)['game_id'].tolist()
+    pbp = pbp.loc[pbp['game_id'].isin(last_n_games), :].copy()
+    play_num_range = pbp.index.max() - pbp.index.min()
+
+    # Fig variables
+    x = pbp.index
+    y = pbp['Rolling EPA / Play'].to_numpy()
+    opp = pbp[opp_unit_col].to_numpy()
+    colors = pbp['opp_color'].tolist()
+
+    # Games
+    games = pbp['game_id'].unique().tolist()
+    opp_logos = pbp.drop_duplicates(subset='game_id')['opp_logo'].tolist()
+    opp_colors = pbp.drop_duplicates(subset='game_id')['opp_color'].tolist()
+    game_endpoints = []
+    game_midpoints = []
+    for g in games:
+        sl = pbp.loc[pbp['game_id'] == g, :]
+        midpoint_play = (sl.index[-1] + sl.index[0]) / 2
+        game_midpoints.append(midpoint_play)
+        game_endpoints.append((sl.index[0],sl.index[-1]))
+
+    # Figure
+    fig = px.line(
+        data_frame=pbp,
+        x=x,
+        y=y,
+        color_discrete_sequence=['#323232']
+    )
+
+    # League avg line
+    # fig.add_hline(y=league_av_epa, line_width=1.5, line_dash="dash", line_color="white", layer='above',
+    #             annotation=dict(text=f'League avg: {league_av_epa:.2f}', font=dict(color='white', size=10, weight='bold'), yanchor='bottom', xanchor='left'), annotation_position='left')
+
+    # Game formatting
+    for i in range(len(games)):
+        # Opp logo
+        fig.add_layout_image(
+            x=game_midpoints[i],
+            y=1,
+            sizex=play_num_range*.04,
+            sizey=play_num_range*.04,
+            xanchor='center',
+            yanchor='middle',
+            xref='x', 
+            yref='paper',
+            source=opp_logos[i],
+        )
+        # Opp color background
+        fig.add_shape(
+            type="rect",
+            xref='x',
+            x0=game_endpoints[i][0],  # x-coordinate of the left edge
+            x1=game_endpoints[i][1],  # x-coordinate of the right edge
+            yref='paper',
+            y0=0,  # y-coordinate of the bottom edge
+            y1=1,  # y-coordinate of the top edge
+            fillcolor=opp_colors[i],  # Color to fill the rectangle
+            opacity=0.6,  # Opacity of the fill color
+            line=dict(color="rgba(0,0,0,0)", width=.5),  # Line properties for the border
+            layer="below"  # Place the shape below the traces
+        )
+        # Number of plays
+        fig.add_annotation(
+            text=f'{game_endpoints[i][1] - game_endpoints[i][0]} Plays',
+            font=dict(color='white', size=10),
+            xref='x', 
+            yref='paper',
+            x=game_midpoints[i],
+            y=.975,
+            align='center',
+            showarrow=False
+        )
+
+    # Team wordmark
+    # response = requests.get(team_wordmark)
+    # # logo_img = Image.open(BytesIO(response.content))
+    # fig.add_layout_image(
+    #     x=0.5,
+    #     y=1.1,
+    #     sizex=.15,
+    #     sizey=.15,
+    #     xanchor='center',
+    #     yanchor='middle',
+    #     xref='paper', 
+    #     yref='paper',
+    #     # source=logo_img,
+    #     source=team_dict['wordmark'],
+    # )
+
+    fig.update_traces(line=dict(width=3))
+    fig.update_yaxes(
+        linecolor='#f0f0f0', mirror=True,
+        title='Rolling EPA / Play',
+        tickformat='.2f',
+        title_standoff=1,
+        range=[-0.6, 0.6] if unit == 'offense' else [0.6, -0.6],
+    )
+    fig.update_xaxes(
+        linecolor='#f0f0f0', mirror=True,
+        # title='Play #',
+        # tickformat=',',
+        showgrid=False,
+        # title_standoff=1
+        showticklabels=False
+    )
+    title = f'Team Form: {unit.capitalize()}'
+    fig.update_layout(
+        title=f'<b>{title}</b><br><sup>30-play rolling EPA / Play; last {n_games} games</sup>',
+        template='nfl_template',
+        showlegend=False,
+        margin=dict(t=75, b=40, pad=5)
+    )
+    # Credits
+    fig.add_annotation(
+        text=f'Figure: @clankeranalytic | Data: nfl_data_py | {datetime.today().strftime("%Y-%m-%d")}',
+        showarrow=False,
+        xref='paper',
+        yref='paper',
+        y=-0.09, 
+        x=1,
+        align='right'
+    )
+
+    return fig
+
+
+
     
 def pass_locations_heatmap(pass_locs: pd.DataFrame, z_col: str) -> go.Figure:
 
