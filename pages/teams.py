@@ -10,15 +10,21 @@ import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.io as pio
 import plotly.graph_objects as go
+import plotly.figure_factory as ff
+from plotly.subplots import make_subplots
 
 from data.loaders import (
-    available_seasons, get_team_matchups, get_matchup_data,
+    get_league_logo, available_seasons, get_team_matchups, get_matchup_data,
     get_teams, get_team_data, get_team_pbp, get_pbp_data
 )
 from data.transforms import (
-    team_pass_locations, team_run_locations
+    team_pass_locations, team_run_locations,
+    get_player_stats, pass_rate_by_down_distance
 )
-from data.charts import team_form_chart, pass_locations_heatmap, run_locations_heatmap
+from data.charts import (
+    team_form_chart, pass_locations_heatmap, run_locations_heatmap,
+    target_share_chart, generate_table, pass_rate_chart
+)
 
 
 # --------- Setup -----------
@@ -113,6 +119,19 @@ team_form_defense_graph = dcc.Loading(
 
 # ---- Tendencies ----
 
+team_pass_rate_graph = dcc.Loading(
+    dcc.Graph(
+        id="team-pass-rate-graph", 
+        responsive=True,
+        config={"displayModeBar": False},
+        style={
+            'height': '400px',
+            'width': '100%'
+        }
+    ),
+    type="default",
+)
+
 team_pass_locations_graph = dcc.Loading(
     dcc.Graph(
         id="team-pass-locations-graph", 
@@ -126,9 +145,51 @@ team_pass_locations_graph = dcc.Loading(
     type="default",
 )
 
+team_pass_locations_table = dcc.Loading(
+    dcc.Graph(
+        id="team-pass-locations-table", 
+        responsive=True,
+        config={"displayModeBar": False},
+        style={
+            'height': '500px',
+            'width': '100%',
+        }
+    ),
+    type="default",
+)
+
+team_pass_locations_figure = dcc.Loading(
+    dcc.Graph(
+        id="team-pass-locations-figure", 
+        responsive=True,
+        config={"displayModeBar": False},
+        style={
+            'height': '800px',
+            'width': '100%',
+        }
+    ),
+    type="default",
+)
+
 team_run_locations_graph = dcc.Loading(
     dcc.Graph(
         id="team-run-locations-graph", 
+        responsive=True,
+        config={"displayModeBar": False},
+        style={
+            'height': '400px',
+            'width': '100%'
+        }
+    ),
+    type="default",
+)
+
+
+# ---- Players ----
+
+team_target_share_graph = dcc.Loading(
+    dcc.Graph(
+        id="team-target-share-graph", 
         responsive=True,
         config={"displayModeBar": False},
         style={
@@ -179,9 +240,19 @@ form_tab_content = dbc.Container(
 )
 
 tendencies_tab_content = dbc.Container(
-    [
-        team_pass_locations_graph,
+    [   
+        team_pass_rate_graph,
+        # team_pass_locations_graph,
+        # team_pass_locations_table,
+        team_pass_locations_figure,
         team_run_locations_graph
+    ],
+    className="pb-5"
+)
+
+players_tab_content = dbc.Container(
+    [
+        team_target_share_graph
     ],
     className="pb-5"
 )
@@ -189,7 +260,8 @@ tendencies_tab_content = dbc.Container(
 tabs = dbc.Tabs(
     [
         dbc.Tab(form_tab_content, label="Form", id='form-tab'),
-        dbc.Tab(tendencies_tab_content, label="Tendencies", id='tendencies-tab')
+        dbc.Tab(tendencies_tab_content, label="Tendencies", id='tendencies-tab'),
+        dbc.Tab(players_tab_content, label="Players", id='players-tab'),
     ],
     active_tab="form-tab",
 )
@@ -219,8 +291,8 @@ layout = dbc.Container(
         html.Div(style={"height": "10px"}),
         dbc.Row(
             [
-                dbc.Col(navbar_col, width=3),
-                dbc.Col(content_col, width=9)
+                dbc.Col(navbar_col, width=2),
+                dbc.Col(content_col, width=10)
             ],
         )
     ],
@@ -320,8 +392,42 @@ def update_team_form_graphs(team: str, season: int):
 
 
 
+# ---- Tendencies ----
+
 @callback(
-    Output("team-pass-locations-graph", "figure"),
+    Output("team-pass-rate-graph", "figure"),
+    Input("team-dropdown", "value"),
+    Input("season-dropdown", "value"),
+)
+def update_team_pass_locations_graph(team: str, season: int):
+    print(f'updating pass locs chart...')
+
+    # ---- Get Data ----
+
+    # Team data
+    team_data = get_team_data().to_pandas()
+    team_data = team_data.rename(columns={'team_abbr': 'posteam'}).set_index('posteam')
+
+    # Pass rates
+    pass_rate = pass_rate_by_down_distance(year=season)
+
+    # Add logos
+    pass_rate = pass_rate.join(team_data[['team_logo_espn']], on='posteam')
+    pass_rate.loc[pass_rate.index.get_level_values('posteam') == 'League', 'team_logo_espn'] = get_league_logo()
+
+    print(pass_rate[pass_rate.index.get_level_values('posteam') == 'League'])
+    
+    # ---- Visualize ----
+
+    fig = pass_rate_chart(pass_rates=pass_rate, team=team)
+
+    return fig
+
+
+@callback(
+    # Output("team-pass-locations-graph", "figure"),
+    # Output("team-pass-locations-table", "figure"),
+    Output("team-pass-locations-figure", "figure"),
     Input("team-dropdown", "value"),
     Input("season-dropdown", "value"),
 )
@@ -344,19 +450,62 @@ def update_team_pass_locations_graph(team: str, season: int):
         yards = row['Yards']
         sr = row['Success Rate']
         epa = row['EPA / Play']
-        return f'Pct Plays: {pct_plays:.0%}<br>Yards: {yards:.0f}<br>Success Rate: {sr:.1%}<br>EPA / Play: {epa:.1f}'
+        # return f'Pct Plays: {pct_plays:.0%}<br>Yards: {yards:.0f}<br>Success Rate: {sr:.1%}<br>EPA / Play: {epa:.1f}'
+        return f'{pct_plays:.0%}'
     
     pass_locations['text'] = pass_locations.apply(lambda x: text(x), axis=1)
 
     # ---- Visualize ----
 
-    fig = pass_locations_heatmap(pass_locs=pass_locations, z_col='% Plays Percentile')
-    fig.update_layout(
+    heatmap = pass_locations_heatmap(pass_locs=pass_locations, z_col='% Plays Percentile')
+    heatmap.update_layout(
         title=f'<b>{team} Pass Locations</b><br><sup>Deeper color indicates higher percentage of pass plays relative to league</sup>',
         coloraxis=dict(
             showscale=False,
-            colorscale=['white', color]
+            # colorscale=['white', color]
+            colorscale=px.colors.diverging.PRGn,
+            cmin=0, cmax=1
         )
+    )
+
+    format_mapper = {
+        '% Plays': '{:,.1%}', 
+        '% Plays Percentile': '{:,.1%}', 
+        'Yards': '{:,.0f}', 
+        'Success Rate': '{:,.1%}', 
+        'EPA / Play': '{:,.2f}'
+    }
+    tbl_data = pass_locations.reset_index()[['Side', 'Depth', 'Plays', '% Plays', '% Plays Percentile', 'Yards', 'Success Rate', 'EPA / Play']]
+
+    for col in tbl_data.columns:
+        if col in format_mapper.keys():
+            fmt = format_mapper[col]
+            tbl_data[col] = tbl_data[col].map(fmt.format)
+
+    tbl = generate_table(tbl_data)
+
+    fig = make_subplots(
+        rows=2, cols=1, specs=[[{'type': 'xy'}], [{'type': 'table'}]]
+    )
+    for trace in heatmap.data:
+        fig.add_trace(
+            trace,
+            row=1, col=1
+        )
+
+    for trace in tbl.data:
+        fig.add_trace(
+            trace,
+            row=2, col=1
+        )
+
+    fig.update_coloraxes(
+        showscale=False,
+        colorscale=px.colors.diverging.PRGn,
+        cmin=0, cmax=1
+    )
+    fig.update_layout(
+        title='<b>Pass Locations</b>'
     )
 
     return fig
@@ -388,7 +537,6 @@ def update_team_run_locations_graph(team: str, season: int):
         return f'Pct Plays: {pct_plays:.0%}<br>Yards: {yards:.0f}<br>Success Rate: {sr:.1%}<br>EPA / Play: {epa:.1f}<br>Stuff Rate: {stfrt:.1%}'
     
     run_locations['text'] = run_locations.apply(lambda x: text(x), axis=1)
-    print(run_locations)
     
     # ---- Visualize ----
 
@@ -401,4 +549,35 @@ def update_team_run_locations_graph(team: str, season: int):
         )
     )
 
+    return fig
+
+
+# ---- Players ----
+
+@callback(
+    Output("team-target-share-graph", "figure"),
+    Input("team-dropdown", "value"),
+    Input("season-dropdown", "value"),
+)
+def update_team_players_graphs(team: str, season: int):
+    print(f'updating team player charts...')
+
+    # ---- Get Data ----
+
+    pbp = get_team_pbp(year=season, team=team).to_pandas()
+    player_stats = get_player_stats(pbp)
+
+    player_stats = player_stats[player_stats.index.get_level_values('team') == team].copy()
+
+    # ---- Wrangle ----
+
+    # Target Share
+    target_share = player_stats[['display_name', 'position', 'headshot', 'Receiving Targets']]
+    target_share['Target Share'] = target_share['Receiving Targets'] / target_share['Receiving Targets'].sum()
+    target_share = target_share.sort_values(by='Target Share', ascending=False)
+
+    # ---- Visualize ----
+    
+    fig = target_share_chart(df=target_share)
+    
     return fig

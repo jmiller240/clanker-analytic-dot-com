@@ -16,6 +16,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 from scipy import stats
+import math
 
 import plotly.express as px
 import plotly.graph_objects as go
@@ -347,6 +348,98 @@ def team_form_chart(pbp: pd.DataFrame, team_dict: dict, unit: str = 'offense', n
 
 
 
+def pass_rate_chart(pass_rates: pd.DataFrame, team: str) -> go.Figure:
+
+    # ---- Data ----
+
+    # Down / Distance order
+    dd_order = pass_rates.index.get_level_values('Down & Distance').unique().tolist()
+
+    # Filter to: team, highest / lowest by category
+    down_distance_mins = pass_rates.groupby(level='Down & Distance')['% Pass'].idxmin()
+    down_distance_maxs = pass_rates.groupby(level='Down & Distance')['% Pass'].idxmax()
+
+    condt = (
+        (pass_rates.index.get_level_values('posteam') == team) |
+        (pass_rates.index.get_level_values('posteam') == 'League') |
+        (pass_rates.index.isin(down_distance_mins)) |
+        (pass_rates.index.isin(down_distance_maxs))
+    )
+    pass_rates = pass_rates[condt]
+
+    # Variables for chart
+    x = pass_rates['% Pass'].tolist()
+    y = pass_rates.index.get_level_values('Down & Distance').tolist()
+    logos = pass_rates['team_logo_espn'].tolist()
+    teams = pass_rates.index.get_level_values('posteam').tolist()
+
+    # ---- Figure ----
+    
+    # Plot
+    dot_plot = px.scatter(
+        x=x,
+        y=y,
+        color=teams,
+        color_discrete_sequence=['#44546a'],
+    )
+
+    # Init figure
+    fig = go.Figure()
+
+    for trace in dot_plot.data:
+        fig.add_trace(trace)
+
+    # Add logo as marker for team / league
+    fig.update_traces(marker=dict(opacity=0), selector=lambda trace: trace.name == team or trace.name == 'League')
+
+    for i in range(len(logos)):
+        if math.isnan(x[i]) or not (teams[i] == team or teams[i] == 'League'): 
+            continue
+
+        op = 1 if teams[i] == team else 0.4
+        size = 0.6 if teams[i] == team else 0.4
+        layer = 'above' if teams[i] == team else 'below'
+        fig.add_layout_image(
+            source=logos[i],  # The loaded image
+            xref="x",    # Reference x-coordinates to the x-axis
+            yref="y",    # Reference y-coordinates to the y-axis
+            x=x[i], # X-coordinate of the image's center
+            y=y[i], # Y-coordinate of the image's center
+            sizex=size,   # Width of the image in data units
+            sizey=size,   # Height of the image in data units
+            xanchor="center", # Anchor the image by its center horizontally
+            yanchor="middle", # Anchor the image by its middle vertically
+            layer=layer, # Place image above other plot elements
+            opacity=op
+        )
+
+    # Format
+
+    fig.update_xaxes(
+        title=dict(
+            text=f'<span style="font-size: 10px"><-- More Run Heavy</span>       <b>Pass Rate</b>       <span style="font-size: 10px">More Pass Heavy --></span>',
+            font=dict(weight='normal')
+        ),
+        tickformat='.0%',
+        range=[0,1],
+        dtick=.1,
+        linecolor='#f0f0f0', mirror=True,
+    )
+    fig.update_yaxes(
+        categoryorder="array", 
+        categoryarray=dd_order,
+        autorange='reversed',
+        linecolor='#f0f0f0', mirror=True,
+        showgrid=True,
+    )
+    fig.update_layout(
+        # template='nfl_template',
+        title=f'<b>Pass Rate by Down & Distance</b><br><sup>"Normal" game state: qtrs 1-3, score within 14 pts; regular season only</sup>',
+        showlegend=False,
+        margin=dict(t=50, l=75, b=60),
+    )
+
+    return fig
     
 def pass_locations_heatmap(pass_locs: pd.DataFrame, z_col: str) -> go.Figure:
 
@@ -400,7 +493,7 @@ def pass_locations_heatmap(pass_locs: pd.DataFrame, z_col: str) -> go.Figure:
             cmin=0,
             colorscale=px.colors.diverging.PiYG
         ),
-        margin=dict(pad=5)
+        margin=dict(pad=10)
     )
 
     return fig
@@ -437,7 +530,50 @@ def run_locations_heatmap(run_locs: pd.DataFrame, z_col: str) -> go.Figure:
     return fig
 
 
+def target_share_chart(df: pd.DataFrame, n_players: int = 5) -> pd.DataFrame:
+
+    df = df.head(n_players)
+
+    fig = px.bar(
+        data_frame=df,
+        x='display_name',
+        y='Target Share'
+    )
+    fig.update_yaxes(
+        tickformat='.1%'
+    )
+    fig.update_layout(
+        title=f'<b>Target Share</b><br><sup>Top {n_players:,} in % of team targets</sup>'
+    )
+
+    return fig
+
+
 # ---- General ----
+
+def generate_table(df: pd.DataFrame) -> go.Figure:
+    fig = go.Figure(
+        data=[
+            go.Table(
+                # Remove columnwidth or explicitly define specific ratios if needed
+                header=dict(
+                    values=list(df.columns),
+                    font=dict(weight='bold', color='#323232'),
+                    fill_color=['#CCCCCC'],
+                    line_color='#CCCCCC',
+                ),
+                cells=dict(
+                    values=[df[col] for col in df.columns],
+                    font=dict(color=['#323232']),
+                    fill_color=['white'],
+                    line_color='#323232', # Border color for header
+                    line_width=0.5, 
+                )
+            )
+        ]
+    )
+
+    return fig
 
 def tier_chart(data_frame: pd.DataFrame,
                x_col: str,

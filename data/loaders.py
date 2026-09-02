@@ -23,6 +23,11 @@ CACHE_DIR.mkdir(exist_ok=True)
 
 # --------- Helpers ---------
 
+# --- Static ---
+
+def get_league_logo() -> str:
+    return 'https://raw.githubusercontent.com/nflverse/nflverse-pbp/master/NFL.png'
+
 # --- Lists ---
 
 def available_seasons() -> list[int]:

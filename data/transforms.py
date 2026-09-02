@@ -345,10 +345,11 @@ def pass_locations(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
             return '> 25'
 
     pbp['pass len'] = pbp['air_yards'].apply(lambda x: pass_len(x))
-    pbp['Pass Loc'] = pbp['pass len'] + ' ' + pbp['pass_location'].str.capitalize()
+    # pbp['Pass Loc'] = pbp['pass len'] + ' ' + pbp['pass_location'].str.capitalize()
+    pbp['pass loc'] = pbp['pass_location'].str.capitalize()
 
     # Aggregate
-    pass_loc_levels = ['pass_location', 'pass len']     #['Pass Location']
+    pass_loc_levels = ['pass loc', 'pass len']
     by_pass_loc = pbp[pbp['pass'] == 1].groupby(gpby_cols + pass_loc_levels).aggregate(  
         Plays=('pass', 'sum'),
         Yards=('passing_yards', 'sum'),
@@ -375,7 +376,7 @@ def pass_locations(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
     # by_pass_loc = by_pass_loc.reindex(labels=['Left', 'Middle', 'Right'], level='Side')
 
     by_pass_loc = by_pass_loc.reindex(labels=['Behind LOS', '0 to 7', '8 to 15', '16 to 25', '> 25'], level='pass len')
-    by_pass_loc = by_pass_loc.reindex(labels=['left', 'middle', 'right'], level='pass_location')
+    by_pass_loc = by_pass_loc.reindex(labels=['Left', 'Middle', 'Right'], level='pass loc')
     by_pass_loc.index.names = ['posteam', 'Side', 'Depth']
 
     return by_pass_loc
@@ -434,6 +435,71 @@ def top_players_by_stat(
     )
 
     return season_totals
+
+
+def pass_rate_by_down_distance(year: int) -> pd.DataFrame:
+
+    # ---- Load Data ----
+
+    pbp = get_pbp_data(years=[year]).to_pandas()
+
+    # ---- Wrangle ----
+
+    # Add Down / Distance
+    def down_distance(down: int, ydstogo: int):
+        if down == 1 and ydstogo == 10:
+            return '1st & 10'
+        elif down == 2 and ydstogo > 7:
+            return '2nd & 8+'
+        elif down == 2 and ydstogo > 3:
+            return '2nd & 4-7'
+        elif down == 2:
+            return '2nd & 1-3'
+        elif down == 3 and ydstogo > 7:
+            return '3rd & 8+'
+        elif down == 3 and ydstogo > 2:
+            return '3rd & 3-7'
+        elif down == 3:
+            return '3rd & 1-2'
+        else:
+            return f'{down} & Other'
+        
+    pbp['Down & Distance'] = pbp.apply(lambda x: down_distance(x['down'], x['ydstogo']), axis=1)
+
+    # Filter to Normal Game State
+    # NOTE - Regular season, normal offensive snaps, Q1-3 and within 2 tds
+    condt = (
+        (pbp['season_type'] == 'REG') & 
+        (pbp['Offensive Snap'] == 1) & 
+        (pbp['Is Special Teams Play'] == 0) &
+        (pbp['qtr'] <= 3) & 
+        (pbp['score_differential'] <= 14)
+    )
+    pbp_normal_gs = pbp[condt]
+
+    # Groupby down / distance
+    down_distance_gpby = pbp_normal_gs.groupby(['posteam', 'Down & Distance']).aggregate(
+        Plays=('posteam', 'size'),
+        Pass=('pass', 'sum'),
+        Rush=('rush', 'sum'),
+    )
+
+    # Add league totals
+    league_totals = down_distance_gpby.groupby(level='Down & Distance').sum()
+    league_totals.index = pd.MultiIndex.from_tuples([('League', ix) for ix in league_totals.index])
+    league_totals.index.names = ['posteam', 'Down & Distance']
+
+    down_distance_gpby = pd.concat([down_distance_gpby, league_totals], ignore_index=False).sort_index()
+
+    # Rates
+    down_distance_gpby['% Pass'] = down_distance_gpby['Pass'] / down_distance_gpby['Plays']
+    down_distance_gpby['% Rush'] = down_distance_gpby['Rush'] / down_distance_gpby['Plays']
+    down_distance_gpby['Diff'] = down_distance_gpby['% Pass'] - down_distance_gpby['% Rush']
+
+    # Reindex
+    down_distance_gpby = down_distance_gpby.reindex(['1st & 10', '2nd & 8+', '2nd & 4-7', '2nd & 1-3', '3rd & 8+', '3rd & 3-7', '3rd & 1-2'], level='Down & Distance')
+
+    return down_distance_gpby
 
 def team_pass_locations(year: int, team: str):
 

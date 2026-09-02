@@ -1,0 +1,24 @@
+
+
+
+Teams - Tendencies
+-----------------
+
+QB Locations (shotgun vs. under center)
+    - keep pie chart for now
+
+Play Types
+    - ?
+
+Pass Locations
+
+Run Locations
+
+Pass Rate by Down & Distance
+    - Similar to existing
+    - Team logo vs. top, bottom, and NFL average
+
+Radar chart from team clustering
+    - common tendency metrics & percentiles
+
+Table with a bunch of tendencies with value and league percentiles

@@ -149,6 +149,7 @@ def update_offense_tiers_chart(season: int):
 
     return fig
 
+
 @callback(
     Output("defense-tiers-chart", "figure"),
     Input("season-dropdown", "value"),
