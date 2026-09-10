@@ -24,6 +24,8 @@ import plotly.graph_objects as go
 from data.constants import STAT_OPTIONS
 
 
+NFL_SHIELD_BLUE_HEX = '#013369'
+
 def leaderboard_bar_chart(
     totals: pd.DataFrame, stat_col: str, position: str, season: int, top_n: int
 ) -> go.Figure:
@@ -361,50 +363,69 @@ def pass_rate_chart(pass_rates: pd.DataFrame, team: str) -> go.Figure:
 
     condt = (
         (pass_rates.index.get_level_values('posteam') == team) |
-        (pass_rates.index.get_level_values('posteam') == 'League') |
-        (pass_rates.index.isin(down_distance_mins)) |
-        (pass_rates.index.isin(down_distance_maxs))
+        (pass_rates.index.get_level_values('posteam') == 'League')
+        # (pass_rates.index.isin(down_distance_mins)) |
+        # (pass_rates.index.isin(down_distance_maxs))
     )
-    pass_rates = pass_rates[condt]
+    team_pass_rates = pass_rates[condt]
 
     # Variables for chart
-    x = pass_rates['% Pass'].tolist()
-    y = pass_rates.index.get_level_values('Down & Distance').tolist()
-    logos = pass_rates['team_logo_espn'].tolist()
-    teams = pass_rates.index.get_level_values('posteam').tolist()
+    teams_x = team_pass_rates['% Pass'].tolist()
+    teams_y = team_pass_rates.index.get_level_values('Down & Distance').tolist()
+    teams_logos = team_pass_rates['team_logo_espn'].tolist()
+    teams = team_pass_rates.index.get_level_values('posteam').tolist()
 
     # ---- Figure ----
     
-    # Plot
-    dot_plot = px.scatter(
-        x=x,
-        y=y,
-        color=teams,
-        color_discrete_sequence=['#44546a'],
-    )
-
     # Init figure
     fig = go.Figure()
 
-    for trace in dot_plot.data:
-        fig.add_trace(trace)
+    # Team / League avg
+    team_scatter = go.Scatter(
+        x=teams_x,
+        y=teams_y,
+        name='Team / League',
+        mode='markers'
+    )
+
+    fig.add_trace(
+        team_scatter
+    )
+
+    # Min/max per down/distance
+    min_max_rates = pass_rates.groupby(level='Down & Distance')['% Pass'].aggregate(['min', 'max']).transpose()
+
+    for down_distance in min_max_rates.columns:
+        x = min_max_rates[down_distance].tolist()
+        scatter = go.Scatter(
+            x=x,
+            y=[down_distance]*len(x),
+            name=down_distance,
+            mode='markers+lines',
+            line=dict(color=NFL_SHIELD_BLUE_HEX),
+            marker=dict(color=NFL_SHIELD_BLUE_HEX)
+        )
+        fig.add_trace(
+            scatter
+        )
+
 
     # Add logo as marker for team / league
-    fig.update_traces(marker=dict(opacity=0), selector=lambda trace: trace.name == team or trace.name == 'League')
+    fig.update_traces(marker=dict(opacity=0), selector=lambda trace: trace.name == 'Team / League')
 
-    for i in range(len(logos)):
-        if math.isnan(x[i]) or not (teams[i] == team or teams[i] == 'League'): 
+    for i in range(len(teams_logos)):
+        if math.isnan(teams_x[i]) or not (teams[i] == team or teams[i] == 'League'): 
             continue
 
-        op = 1 if teams[i] == team else 0.4
+        op = 1
         size = 0.6 if teams[i] == team else 0.4
-        layer = 'above' if teams[i] == team else 'below'
+        layer = 'above'
         fig.add_layout_image(
-            source=logos[i],  # The loaded image
+            source=teams_logos[i],  # The loaded image
             xref="x",    # Reference x-coordinates to the x-axis
             yref="y",    # Reference y-coordinates to the y-axis
-            x=x[i], # X-coordinate of the image's center
-            y=y[i], # Y-coordinate of the image's center
+            x=teams_x[i], # X-coordinate of the image's center
+            y=teams_y[i], # Y-coordinate of the image's center
             sizex=size,   # Width of the image in data units
             sizey=size,   # Height of the image in data units
             xanchor="center", # Anchor the image by its center horizontally
@@ -422,7 +443,7 @@ def pass_rate_chart(pass_rates: pd.DataFrame, team: str) -> go.Figure:
         ),
         tickformat='.0%',
         range=[0,1],
-        dtick=.1,
+        dtick=0.25,
         linecolor='#f0f0f0', mirror=True,
     )
     fig.update_yaxes(
@@ -431,12 +452,16 @@ def pass_rate_chart(pass_rates: pd.DataFrame, team: str) -> go.Figure:
         autorange='reversed',
         linecolor='#f0f0f0', mirror=True,
         showgrid=True,
+        gridwidth=25,
+        gridcolor='#cccccc',
+        tickfont=dict(weight='bold')
     )
     fig.update_layout(
-        # template='nfl_template',
-        title=f'<b>Pass Rate by Down & Distance</b><br><sup>"Normal" game state: qtrs 1-3, score within 14 pts; regular season only</sup>',
+        template='nfl_template',
+        # title=f'<b>Pass Rate by Down & Distance</b><br><sup>"Normal" game state: qtrs 1-3, score within 14 pts; regular season only</sup>',
         showlegend=False,
-        margin=dict(t=50, l=75, b=60),
+        # margin=dict(t=50, l=75, b=60),
+        margin=dict(t=10, l=75, b=60),
     )
 
     return fig
@@ -473,11 +498,20 @@ def pass_locations_heatmap(pass_locs: pd.DataFrame, z_col: str) -> go.Figure:
             text=text,
             texttemplate="%{text}",
             coloraxis='coloraxis',
-            xgap=1, ygap=1
+            xgap=2, ygap=2
         )
     )
 
+    fig.update_xaxes(
+        tickfont=dict(weight='bold'),
+        showgrid=False
+    )
+    fig.update_yaxes(
+        tickfont=dict(weight='bold'),
+        showgrid=False
+    )
     fig.update_layout(
+        template='nfl_template',
         coloraxis=dict(
             colorbar=dict(
                 title=dict(
@@ -519,11 +553,20 @@ def run_locations_heatmap(run_locs: pd.DataFrame, z_col: str) -> go.Figure:
             text=text,
             texttemplate="%{text}",
             coloraxis='coloraxis',
-            xgap=1, ygap=1
+            xgap=2, ygap=2
         )
     )
 
+    fig.update_xaxes(
+        tickfont=dict(weight='bold'),
+        showgrid=False
+    )
+    fig.update_yaxes(
+        tickfont=dict(weight='bold'),
+        showgrid=False
+    )
     fig.update_layout(
+        template='nfl_template',
         margin=dict(pad=5)
     )
 
@@ -543,6 +586,7 @@ def target_share_chart(df: pd.DataFrame, n_players: int = 5) -> pd.DataFrame:
         tickformat='.1%'
     )
     fig.update_layout(
+        template='nfl_template',
         title=f'<b>Target Share</b><br><sup>Top {n_players:,} in % of team targets</sup>'
     )
 

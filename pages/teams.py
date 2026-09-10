@@ -119,56 +119,106 @@ team_form_defense_graph = dcc.Loading(
 
 # ---- Tendencies ----
 
-team_pass_rate_graph = dcc.Loading(
-    dcc.Graph(
-        id="team-pass-rate-graph", 
-        responsive=True,
-        config={"displayModeBar": False},
-        style={
-            'height': '400px',
-            'width': '100%'
-        }
-    ),
-    type="default",
+team_pass_rate_graph = dbc.Card(
+    [
+        dbc.CardHeader(
+            dbc.Stack(
+                [
+                    html.Label(
+                        'Pass Rate by Down & Distance',
+                        style={
+                            'fontWeight': 'bold',
+                            'fontSize': '1.3em'
+                        }
+                    ),
+                    html.Label(
+                        '"Normal" game state: qtrs 1-3, score within 14 pts; regular season only',
+                        style={
+                            'fontSize': '0.9em'
+                        }
+                    )
+                ],
+                gap=0
+            )
+        ),
+        dbc.CardBody(
+            dcc.Loading(
+                dcc.Graph(
+                    id="team-pass-rate-graph", 
+                    responsive=True,
+                    config={"displayModeBar": False},
+                    style={
+                        'height': '70vh',
+                        'width': '100%'
+                    }
+                ),
+                type="default",
+            )
+        )
+    ],
+    className="mb-4",
+    style={
+        'width': '100%',
+    }
 )
 
-team_pass_locations_graph = dcc.Loading(
-    dcc.Graph(
-        id="team-pass-locations-graph", 
-        responsive=True,
-        config={"displayModeBar": False},
-        style={
-            'height': '400px',
-            'width': '100%'
-        }
-    ),
-    type="default",
-)
 
-team_pass_locations_table = dcc.Loading(
-    dcc.Graph(
-        id="team-pass-locations-table", 
-        responsive=True,
-        config={"displayModeBar": False},
-        style={
-            'height': '500px',
-            'width': '100%',
-        }
-    ),
-    type="default",
-)
-
-team_pass_locations_figure = dcc.Loading(
-    dcc.Graph(
-        id="team-pass-locations-figure", 
-        responsive=True,
-        config={"displayModeBar": False},
-        style={
-            'height': '800px',
-            'width': '100%',
-        }
-    ),
-    type="default",
+team_pass_locations_graph = dbc.Card(
+    [
+        dbc.CardHeader(
+            dbc.Stack(
+                [
+                    html.Label(
+                        'Pass Locations',
+                        style={
+                            'fontWeight': 'bold',
+                            'fontSize': '1.3em'
+                        }
+                    ),
+                    # html.Label(
+                    #     'Deeper color indicates higher percentage of pass plays relative to league',
+                    #     style={
+                    #         'fontSize': '0.9em'
+                    #     }
+                    # )
+                ],
+                gap=0
+            )
+        ),
+        dbc.CardBody(
+            [
+                dcc.Loading(
+                    dcc.Graph(
+                        id="team-pass-locations-graph", 
+                        responsive=True,
+                        config={"displayModeBar": False},
+                        style={
+                            'height': '60vh',
+                            'width': '100%',
+                        }
+                    ),
+                    type="default",
+                ),
+                dcc.Loading(
+                    dcc.Graph(
+                        id="team-pass-locations-table", 
+                        responsive=True,
+                        config={"displayModeBar": False},
+                        style={
+                            'height': '60vh',
+                            'width': '100%',
+                            'backgroundColor': 'blue'
+                        }
+                    ),
+                    type="default",
+                )
+            ]
+        )
+    ],
+    className="mb-4",
+    style={
+        'width': '100%',
+    }
 )
 
 team_run_locations_graph = dcc.Loading(
@@ -177,7 +227,7 @@ team_run_locations_graph = dcc.Loading(
         responsive=True,
         config={"displayModeBar": False},
         style={
-            'height': '400px',
+            'height': '80vh',
             'width': '100%'
         }
     ),
@@ -193,7 +243,7 @@ team_target_share_graph = dcc.Loading(
         responsive=True,
         config={"displayModeBar": False},
         style={
-            'height': '400px',
+            'height': '80vh',
             'width': '100%'
         }
     ),
@@ -240,11 +290,9 @@ form_tab_content = dbc.Container(
 )
 
 tendencies_tab_content = dbc.Container(
-    [   
+    [
         team_pass_rate_graph,
-        # team_pass_locations_graph,
-        # team_pass_locations_table,
-        team_pass_locations_figure,
+        team_pass_locations_graph,
         team_run_locations_graph
     ],
     className="pb-5"
@@ -263,7 +311,8 @@ tabs = dbc.Tabs(
         dbc.Tab(tendencies_tab_content, label="Tendencies", id='tendencies-tab'),
         dbc.Tab(players_tab_content, label="Players", id='players-tab'),
     ],
-    active_tab="form-tab",
+    id="tabs",
+    active_tab="tendencies-tab",
 )
 
 tabs_container = dbc.Card(
@@ -299,16 +348,6 @@ layout = dbc.Container(
     fluid=True,
     className="pb-5",
 )
-
-# layout = dbc.Container(
-#     [
-#         html.Div(style={"height": "20px"}),
-#         controls,
-#         team_pass_locations_graph
-#     ],
-#     fluid=True,
-#     className="pb-5",
-# )
 
 
 
@@ -399,8 +438,8 @@ def update_team_form_graphs(team: str, season: int):
     Input("team-dropdown", "value"),
     Input("season-dropdown", "value"),
 )
-def update_team_pass_locations_graph(team: str, season: int):
-    print(f'updating pass locs chart...')
+def update_team_pass_rate_graph(team: str, season: int):
+    print(f'updating pass rates chart...')
 
     # ---- Get Data ----
 
@@ -425,9 +464,8 @@ def update_team_pass_locations_graph(team: str, season: int):
 
 
 @callback(
-    # Output("team-pass-locations-graph", "figure"),
-    # Output("team-pass-locations-table", "figure"),
-    Output("team-pass-locations-figure", "figure"),
+    Output("team-pass-locations-graph", "figure"),
+    Output("team-pass-locations-table", "figure"),
     Input("team-dropdown", "value"),
     Input("season-dropdown", "value"),
 )
@@ -443,8 +481,6 @@ def update_team_pass_locations_graph(team: str, season: int):
     # Pass Locs 
     pass_locations = team_pass_locations(year=season, team=team)
 
-    print(pass_locations)
-
     def text(row):
         pct_plays = row['% Plays']
         yards = row['Yards']
@@ -457,25 +493,34 @@ def update_team_pass_locations_graph(team: str, season: int):
 
     # ---- Visualize ----
 
+    # Heatmap
     heatmap = pass_locations_heatmap(pass_locs=pass_locations, z_col='% Plays Percentile')
     heatmap.update_layout(
-        title=f'<b>{team} Pass Locations</b><br><sup>Deeper color indicates higher percentage of pass plays relative to league</sup>',
+        # title=f'<b>{team} Pass Locations</b><br><sup>Deeper color indicates higher percentage of pass plays relative to league</sup>',
+        title=dict(
+            text=f'Label = % of pass plays; deeper color indicates higher percentage of pass plays relative to league',
+            font=dict(size=12),
+            x=0, xref='paper'
+        ),
         coloraxis=dict(
             showscale=False,
-            # colorscale=['white', color]
+            # colorscale=['white', color],
             colorscale=px.colors.diverging.PRGn,
+            # colorscale=[[0.0, '#013369'], [0.5, '#fafafa'], [1.0, '#D50A0A']],
             cmin=0, cmax=1
-        )
+        ),
+        margin=dict(t=50,b=50,l=100,r=100),
     )
 
+    # Table
     format_mapper = {
-        '% Plays': '{:,.1%}', 
-        '% Plays Percentile': '{:,.1%}', 
-        'Yards': '{:,.0f}', 
+        '% Plays': '{:,.0%}', 
+        '% Yards': '{:,.0%}',
+        'Yards / Play': '{:,.1f}', 
         'Success Rate': '{:,.1%}', 
         'EPA / Play': '{:,.2f}'
     }
-    tbl_data = pass_locations.reset_index()[['Side', 'Depth', 'Plays', '% Plays', '% Plays Percentile', 'Yards', 'Success Rate', 'EPA / Play']]
+    tbl_data = pass_locations.reset_index()[['Side', 'Depth', '% Plays', '% Yards', 'Yards / Play', 'Success Rate', 'EPA / Play']]
 
     for col in tbl_data.columns:
         if col in format_mapper.keys():
@@ -484,31 +529,37 @@ def update_team_pass_locations_graph(team: str, season: int):
 
     tbl = generate_table(tbl_data)
 
-    fig = make_subplots(
-        rows=2, cols=1, specs=[[{'type': 'xy'}], [{'type': 'table'}]]
-    )
-    for trace in heatmap.data:
-        fig.add_trace(
-            trace,
-            row=1, col=1
+    color_scale_len = len(px.colors.diverging.PRGn) - 1
+    master_cell_colors = [['white', '#f0f0f0']*len(pass_locations), ['white', '#f0f0f0']*len(pass_locations)]
+    master_text_colors = [['#323232']*len(pass_locations), ['#323232']*len(pass_locations)]
+    for col in ['% Plays', '% Yards', 'Yards / Play', 'Success Rate', 'EPA / Play']:
+        pct_col = f'{col} Percentile'
+        pcts = pass_locations[pct_col].tolist()
+
+        cell_colors = [px.colors.diverging.PRGn[int(p * color_scale_len)] for p in pcts]
+        text_colors = []
+        for p in pcts:
+            if p < .15 or p > .9: text_colors.append('white')
+            else: text_colors.append('#323232')
+
+        master_cell_colors.append(cell_colors)
+        master_text_colors.append(text_colors)
+
+    tbl.update_traces(
+        cells=dict(
+            height=25,
+            fill=dict(color=master_cell_colors),
+            font=dict(color=master_text_colors)
         )
-
-    for trace in tbl.data:
-        fig.add_trace(
-            trace,
-            row=2, col=1
-        )
-
-    fig.update_coloraxes(
-        showscale=False,
-        colorscale=px.colors.diverging.PRGn,
-        cmin=0, cmax=1
-    )
-    fig.update_layout(
-        title='<b>Pass Locations</b>'
     )
 
-    return fig
+    tbl.update_layout(
+        template='nfl_template',
+        autosize=True,
+        margin=dict(t=0,b=0,l=100,r=100, pad=10),
+    )
+
+    return heatmap, tbl
 
 
 @callback(

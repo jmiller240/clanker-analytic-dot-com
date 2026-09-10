@@ -6,7 +6,29 @@ dict = {
     "layout": {
         "paper_bgcolor": "#fafafa",
         "plot_bgcolor": "white",
-
+        "font": {"family": "Helvetica", "size": 12, "color": "#323232"},
+        "xaxis": {
+            "ticks": "",
+            "ticklabelstandoff": 5,
+            "zeroline": False,
+            "linecolor": "#f0f0f0",
+            "linewidth": 1,
+            "mirror": True,
+            "gridcolor": "#d1d1d1", 
+            "griddash": "solid",
+            "gridwidth": 1,
+        },
+        "yaxis": {
+            "ticks": "",
+            "ticklabelstandoff": 5,
+            "zeroline": False,
+            "linecolor": "#f0f0f0",
+            "linewidth": 1,
+            "mirror": True,
+            "gridcolor": "#d1d1d1", 
+            "griddash": "solid",
+            "gridwidth": 1,
+        }
     }
 }
 

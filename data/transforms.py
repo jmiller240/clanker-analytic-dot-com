@@ -342,7 +342,7 @@ def pass_locations(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
         elif air_yards <= 25:
             return '16 to 25'
         else:
-            return '> 25'
+            return '25+'
 
     pbp['pass len'] = pbp['air_yards'].apply(lambda x: pass_len(x))
     # pbp['Pass Loc'] = pbp['pass len'] + ' ' + pbp['pass_location'].str.capitalize()
@@ -361,11 +361,12 @@ def pass_locations(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
     # Add'l Stats
     by_pass_loc['% Plays'] = by_pass_loc['Plays'] / by_pass_loc.groupby(level=gpby_cols)['Plays'].sum()
     by_pass_loc['% Yards'] = by_pass_loc['Yards'] / by_pass_loc.groupby(level=gpby_cols)['Yards'].sum()
+    by_pass_loc['Yards / Play'] = by_pass_loc['Yards'] / by_pass_loc['Plays']
     by_pass_loc['Success Rate'] = by_pass_loc['Successes'] / by_pass_loc['Plays']
     by_pass_loc['EPA / Play'] = by_pass_loc['EPA'] / by_pass_loc['Plays']
 
     # %iles
-    for col in ['% Plays', '% Yards', 'Success Rate', 'EPA / Play']:
+    for col in ['% Plays', '% Yards', 'Yards / Play', 'Success Rate', 'EPA / Play']:
         by_pass_loc[f'{col} Percentile'] = by_pass_loc[col].groupby(level=pass_loc_levels).rank(pct=True, ascending=True, method='min')
 
     # Final Shape
@@ -375,7 +376,7 @@ def pass_locations(pbp: pd.DataFrame, gpby_cols: list[str]) -> pd.DataFrame:
     # by_pass_loc = by_pass_loc.reindex(labels=['Short', 'Medium', 'Long'], level='Depth')
     # by_pass_loc = by_pass_loc.reindex(labels=['Left', 'Middle', 'Right'], level='Side')
 
-    by_pass_loc = by_pass_loc.reindex(labels=['Behind LOS', '0 to 7', '8 to 15', '16 to 25', '> 25'], level='pass len')
+    by_pass_loc = by_pass_loc.reindex(labels=['Behind LOS', '0 to 7', '8 to 15', '16 to 25', '25+'], level='pass len')
     by_pass_loc = by_pass_loc.reindex(labels=['Left', 'Middle', 'Right'], level='pass loc')
     by_pass_loc.index.names = ['posteam', 'Side', 'Depth']
 
